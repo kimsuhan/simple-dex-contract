@@ -6,7 +6,7 @@
     "test": "hardhat test",
     "compile": "hardhat compile",
     "node": "hardhat node",
-    "deploy:local": "hardhat ignition deploy ignition/modules/* --network localhost"
+    "deploy:local": "rm -rf ignition/deployments/chain-31337 && hardhat ignition deploy ignition/modules/* --network localhost"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-chai-matchers": "^2.0.0",
