@@ -4,6 +4,8 @@ import { TokenSwap } from '@/components/TokenSwap'
 import { LiquidityPool } from '@/components/LiquidityPool'
 import { DexInfo } from '@/components/DexInfo'
 import { AdminPanel } from '@/components/AdminPanel'
+import { PoolList } from '@/components/PoolList'
+import { PoolStats } from '@/components/PoolStats'
 
 export default function Home() {
   return (
@@ -28,9 +30,19 @@ export default function Home() {
           </div>
 
           {/* 메인 섹션: DEX 기능 */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
             <TokenSwap />
             <LiquidityPool />
+          </div>
+
+          {/* 풀 정보 섹션 */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            <PoolList />
+            <PoolStats />
+          </div>
+
+          {/* DEX 정보 섹션 */}
+          <div className="mb-6">
             <DexInfo />
           </div>
 
