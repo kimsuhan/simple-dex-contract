@@ -52,4 +52,12 @@ export class RedisService {
   async lrem(key: string, count: number, value: string) {
     return this.redis.lrem(key, count, value);
   }
+
+  async del(key: string) {
+    return this.redis.del(key);
+  }
+
+  async flushall() {
+    return this.redis.flushall();
+  }
 }

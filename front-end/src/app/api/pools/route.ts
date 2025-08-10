@@ -1,6 +1,6 @@
-import { NextResponse } from 'next/server'
+import { NextResponse } from 'next/server';
 
-const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:3001'
+const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:3001';
 
 export async function GET() {
   try {
@@ -9,29 +9,24 @@ export async function GET() {
       headers: {
         'Content-Type': 'application/json',
       },
-    })
+    });
 
     if (!response.ok) {
-      throw new Error(`Backend API error: ${response.status}`)
+      throw new Error(`Backend API error: ${response.status}`);
     }
 
-    const data = await response.text()
-    
-    return new NextResponse(data, {
-      status: 200,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    })
+    const data = await response.json();
+
+    return NextResponse.json(data.data);
   } catch (error) {
-    console.error('API 프록시 에러:', error)
-    
+    console.error('API 프록시 에러:', error);
+
     return NextResponse.json(
-      { 
+      {
         error: '풀 데이터를 가져올 수 없습니다.',
-        details: error instanceof Error ? error.message : 'Unknown error'
+        details: error instanceof Error ? error.message : 'Unknown error',
       },
-      { status: 500 }
-    )
+      { status: 500 },
+    );
   }
 }

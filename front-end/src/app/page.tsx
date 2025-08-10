@@ -1,44 +1,69 @@
-import { Header } from '@/components/Header'
-import { Dashboard } from '@/components/Dashboard'
-import { TokenSwap } from '@/components/TokenSwap'
-import { LiquidityPool } from '@/components/LiquidityPool'
-import { DexInfo } from '@/components/DexInfo'
-import { AdminPanel } from '@/components/AdminPanel'
-import { PoolList } from '@/components/PoolList'
-import { PoolStats } from '@/components/PoolStats'
+'use client';
+
+import { AdminPanel } from '@/components/AdminPanel';
+import { Dashboard } from '@/components/Dashboard';
+import { DexInfo } from '@/components/DexInfo';
+import { Header } from '@/components/Header';
+import { LiquidityPool } from '@/components/LiquidityPool';
+import { PoolList } from '@/components/PoolList';
+import { PoolListHorizontal } from '@/components/PoolListHorizontal';
+import { PoolStats } from '@/components/PoolStats';
+import { TokenSwapModal } from '@/components/TokenSwapModal';
+import { TokenTable } from '@/components/TokenTable';
+import { useState } from 'react';
+
+interface PoolData {
+  tokenA: string;
+  tokenB: string;
+  tokenAReserve: string;
+  tokenBReserve: string;
+  totalLiquidity: string;
+}
 
 export default function Home() {
+  const [selectedPool, setSelectedPool] = useState<PoolData | null>(null);
+  const [swapModalOpen, setSwapModalOpen] = useState(false);
+  const [swapPool, setSwapPool] = useState<PoolData | null>(null);
+
+  const handlePoolSelect = (pool: PoolData) => {
+    setSelectedPool(pool);
+  };
+
+  const handleSwapClick = (pool: PoolData) => {
+    setSwapPool(pool);
+    setSwapModalOpen(true);
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       <Header />
-      
-      <div className="container mx-auto px-4 py-8">
-        <div className="text-center mb-12">
-          <h2 className="text-3xl md:text-4xl font-bold text-gray-800 mb-4">
-            SimpleDex - 탈중앙 거래소
-          </h2>
-          <p className="text-lg text-gray-600 max-w-3xl mx-auto">
-            MetaMask 지갑을 연결하고 토큰을 거래하며 유동성을 제공하여 수수료를 획득하세요.
-            완전한 탈중앙 거래소 경험을 제공합니다.
-          </p>
-        </div>
 
+      <div className="container mx-auto px-4 py-8">
         <main className="max-w-7xl mx-auto">
           {/* 상단 섹션: 통합 대시보드 */}
           <div className="mb-8">
             <Dashboard />
           </div>
 
+          {/* 토큰 잔액 테이블 */}
+          <div className="mb-8">
+            <TokenTable />
+          </div>
+
+          {/* 유동성 풀 목록 - 수평 스크롤 */}
+          <div className="mb-8">
+            <PoolListHorizontal onPoolSelect={handlePoolSelect} selectedPool={selectedPool} onSwapClick={handleSwapClick} />
+          </div>
+
           {/* 메인 섹션: DEX 기능 */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-            <TokenSwap />
+          <div className="grid grid-cols-1 lg:grid-cols-1 gap-6 mb-6">
             <LiquidityPool />
           </div>
 
-          {/* 풀 정보 섹션 */}
+          {/* 통계 및 상세 정보 섹션 */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-            <PoolList />
             <PoolStats />
+            <PoolList />
           </div>
 
           {/* DEX 정보 섹션 */}
@@ -79,8 +104,12 @@ export default function Home() {
                   <span className="mr-2">⚠️</span>주의사항
                 </h4>
                 <div className="space-y-1 text-xs text-yellow-700">
-                  <p>• <strong>테스트 환경</strong> - 실제 자금 사용 금지</p>
-                  <p>• <strong>Hardhat Local</strong> 네트워크 권장</p>
+                  <p>
+                    • <strong>테스트 환경</strong> - 실제 자금 사용 금지
+                  </p>
+                  <p>
+                    • <strong>Hardhat Local</strong> 네트워크 권장
+                  </p>
                   <p>• 스왑 전 토큰 승인 필요</p>
                   <p>• 개인키 절대 공유 금지</p>
                 </div>
@@ -89,6 +118,9 @@ export default function Home() {
           </div>
         </main>
       </div>
+
+      {/* 스왑 모달 */}
+      <TokenSwapModal isOpen={swapModalOpen} onClose={() => setSwapModalOpen(false)} selectedPool={swapPool} />
     </div>
-  )
+  );
 }

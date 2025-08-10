@@ -11,14 +11,14 @@ describe('SimpleDex', function () {
   }
 
   async function deployAToken() {
-    const TestTokenA = await ethers.getContractFactory('TestTokenA');
-    const testTokenA = await TestTokenA.deploy();
+    const TestTokenA = await ethers.getContractFactory('ETH');
+    const testTokenA = await TestTokenA.deploy('ETH', 'ETH', 10000);
     return { testTokenA };
   }
 
   async function deployBToken() {
-    const TestTokenB = await ethers.getContractFactory('TestTokenB');
-    const testTokenB = await TestTokenB.deploy();
+    const TestTokenB = await ethers.getContractFactory('XRP');
+    const testTokenB = await TestTokenB.deploy('XRP', 'XRP', 10000);
     return { testTokenB };
   }
 

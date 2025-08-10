@@ -7,8 +7,9 @@ import { SIMPLE_DEX_ABI, SIMPLE_DEX_ADDRESS } from '@/lib/dex'
 import { TOKENS, ERC20_ABI } from '@/lib/tokens'
 import { useTokenApproval } from '@/hooks/useTokenApproval'
 import { useClientOnly } from '@/hooks/useClientOnly'
-import { FaArrowsAltV, FaLock, FaCheckCircle, FaInfoCircle, FaExclamationTriangle } from 'react-icons/fa'
+import { FaArrowsAltV, FaLock, FaCheckCircle, FaInfoCircle } from 'react-icons/fa'
 import { RiTokenSwapLine } from 'react-icons/ri'
+import { Modal } from './Modal'
 
 interface PoolData {
   tokenA: string
@@ -18,11 +19,13 @@ interface PoolData {
   totalLiquidity: string
 }
 
-interface TokenSwapProps {
-  selectedPool?: PoolData | null
+interface TokenSwapModalProps {
+  isOpen: boolean
+  onClose: () => void
+  selectedPool: PoolData | null
 }
 
-export function TokenSwap({ selectedPool }: TokenSwapProps) {
+export function TokenSwapModal({ isOpen, onClose, selectedPool }: TokenSwapModalProps) {
   const hasMounted = useClientOnly()
   const { address, isConnected } = useAccount()
   const [fromToken, setFromToken] = useState(0) // 0: tokenA, 1: tokenB
@@ -34,14 +37,15 @@ export function TokenSwap({ selectedPool }: TokenSwapProps) {
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ 
     hash,
     onSuccess: () => {
-      // 스왑 완료 후 모든 관련 데이터 새로고침
       console.log('Swap completed, refreshing all data...')
       refetchFromTokenBalance()
       refetchToTokenBalance()
       refetchPoolData()
-      // 입력 필드 초기화
       setAmountIn('')
       setAmountOut('')
+      setTimeout(() => {
+        onClose()
+      }, 2000) // 2초 후 모달 닫기
     }
   })
 
@@ -162,74 +166,35 @@ export function TokenSwap({ selectedPool }: TokenSwapProps) {
     }
   }
 
-  // SSR 안전성을 위한 로딩 상태
-  if (!hasMounted) {
-    return (
-      <div className="bg-white p-6 rounded-lg shadow-lg border">
-        <h3 className="text-lg font-semibold mb-6 text-gray-800 flex items-center">
-          <span className="mr-2">🔄</span>
-          토큰 스왑
-        </h3>
-        <div className="animate-pulse space-y-4">
-          <div className="h-20 bg-gray-200 rounded"></div>
-          <div className="h-10 bg-gray-200 rounded"></div>
-          <div className="h-20 bg-gray-200 rounded"></div>
-          <div className="h-10 bg-gray-200 rounded"></div>
-        </div>
-      </div>
-    )
-  }
+  // 모달이 닫히면 상태 초기화
+  useEffect(() => {
+    if (!isOpen) {
+      setAmountIn('')
+      setAmountOut('')
+      setFromToken(0)
+      setToToken(1)
+    }
+  }, [isOpen])
 
-  if (!isConnected) {
-    return (
-      <div className="bg-white p-6 rounded-lg shadow-lg border">
-        <h3 className="text-lg font-semibold mb-4 text-gray-800">토큰 스왑</h3>
-        <p className="text-gray-500 text-center py-4">
-          지갑을 연결하면 토큰을 스왑할 수 있습니다.
-        </p>
-      </div>
-    )
-  }
-
-  if (!selectedPool) {
-    return (
-      <div className="bg-white p-6 rounded-lg shadow-lg border">
-        <h3 className="text-lg font-semibold mb-4 text-gray-800 flex items-center">
-          <RiTokenSwapLine className="mr-2 text-blue-600" />
-          토큰 스왑
-        </h3>
-        <div className="text-center py-8">
-          <FaExclamationTriangle className="text-4xl text-orange-400 mx-auto mb-4" />
-          <h4 className="font-semibold text-gray-700 mb-2">풀을 선택하세요</h4>
-          <p className="text-sm text-gray-500">
-            위에서 유동성 풀을 선택하면 해당 토큰 쌍을 스왑할 수 있습니다.
-          </p>
-        </div>
-      </div>
-    )
-  }
-
-  if (SIMPLE_DEX_ADDRESS === '0x0000000000000000000000000000000000000000') {
-    return (
-      <div className="bg-yellow-50 border border-yellow-200 p-6 rounded-lg">
-        <h3 className="text-lg font-semibold mb-4 text-gray-800">토큰 스왑</h3>
-        <p className="text-yellow-700 text-center py-4">
-          SimpleDex 컨트랙트 주소를 설정해주세요.
-        </p>
-      </div>
-    )
+  if (!selectedPool || !isConnected) {
+    return null
   }
 
   // 풀이 존재하지 않는 경우
   const poolExists = poolData && (poolData as [bigint, bigint, bigint])[2] > 0n
 
   return (
-    <div className="bg-white p-6 rounded-lg shadow-lg border">
-      <h3 className="text-lg font-semibold mb-6 text-gray-800 flex items-center">
-        <RiTokenSwapLine className="mr-2 text-blue-600" />
-        토큰 스왑
-      </h3>
-
+    <Modal 
+      isOpen={isOpen} 
+      onClose={onClose}
+      title={
+        <div className="flex items-center">
+          <RiTokenSwapLine className="mr-2 text-blue-600" />
+          <span>{tokenA.symbol} / {tokenB.symbol} 스왑</span>
+        </div>
+      }
+      size="md"
+    >
       {!poolExists ? (
         <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-lg text-center">
           <div className="text-2xl mb-2">⚠️</div>
@@ -254,40 +219,40 @@ export function TokenSwap({ selectedPool }: TokenSwapProps) {
                 value={amountIn}
                 onChange={(e) => setAmountIn(e.target.value)}
                 placeholder="0.0"
-                className="flex-1 p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="flex-1 p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
-              <div className="flex items-center px-3 py-2 bg-white border border-gray-300 rounded-lg">
+              <div className="flex items-center px-4 py-3 bg-white border border-gray-300 rounded-lg min-w-[80px] justify-center">
                 <span className="font-semibold">{fromTokenInfo.symbol}</span>
               </div>
             </div>
 
             {/* From Token Approval */}
             {amountIn && parseFloat(amountIn) > 0 && (
-              <div className="mt-2">
+              <div className="mt-3">
                 {fromTokenApproval.needsApproval ? (
-                  <div className="flex items-center justify-between bg-yellow-50 p-2 rounded-lg border border-yellow-200">
-                    <span className="text-xs text-yellow-700 flex items-center">
-                      <FaLock className="mr-1" />
+                  <div className="flex items-center justify-between bg-yellow-50 p-3 rounded-lg border border-yellow-200">
+                    <span className="text-sm text-yellow-700 flex items-center">
+                      <FaLock className="mr-2" />
                       {fromTokenInfo.symbol} 승인 필요
                     </span>
                     <button
                       onClick={fromTokenApproval.approveMax}
                       disabled={fromTokenApproval.isLoading}
-                      className="px-3 py-1 text-xs bg-yellow-500 hover:bg-yellow-600 text-white rounded-md font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="px-4 py-2 text-sm bg-yellow-500 hover:bg-yellow-600 text-white rounded-md font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {fromTokenApproval.isLoading ? '승인 중...' : '승인하기'}
                     </button>
                   </div>
                 ) : fromTokenApproval.allowance !== undefined && fromTokenApproval.allowance > 0n ? (
-                  <div className="flex items-center justify-between bg-green-50 p-2 rounded-lg border border-green-200">
-                    <span className="text-xs text-green-700 flex items-center">
-                      <FaCheckCircle className="mr-1" />
+                  <div className="flex items-center justify-between bg-green-50 p-3 rounded-lg border border-green-200">
+                    <span className="text-sm text-green-700 flex items-center">
+                      <FaCheckCircle className="mr-2" />
                       {fromTokenInfo.symbol} 승인 완료
                     </span>
                   </div>
                 ) : (
-                  <div className="flex items-center justify-between bg-gray-50 p-2 rounded-lg border border-gray-200">
-                    <span className="text-xs text-gray-600">💭 {fromTokenInfo.symbol} 승인 상태 확인 중...</span>
+                  <div className="flex items-center justify-center bg-gray-50 p-3 rounded-lg border border-gray-200">
+                    <span className="text-sm text-gray-600">💭 {fromTokenInfo.symbol} 승인 상태 확인 중...</span>
                   </div>
                 )}
               </div>
@@ -318,9 +283,9 @@ export function TokenSwap({ selectedPool }: TokenSwapProps) {
                 value={amountOut}
                 placeholder="0.0"
                 readOnly
-                className="flex-1 p-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-700"
+                className="flex-1 p-3 border border-gray-300 rounded-lg bg-gray-100 text-gray-700"
               />
-              <div className="flex items-center px-3 py-2 bg-white border border-gray-300 rounded-lg">
+              <div className="flex items-center px-4 py-3 bg-white border border-gray-300 rounded-lg min-w-[80px] justify-center">
                 <span className="font-semibold">{toTokenInfo.symbol}</span>
               </div>
             </div>
@@ -328,8 +293,8 @@ export function TokenSwap({ selectedPool }: TokenSwapProps) {
 
           {/* Price Info */}
           {amountIn && amountOut && parseFloat(amountIn) > 0 && parseFloat(amountOut) > 0 && (
-            <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
-              <div className="text-sm text-blue-700 space-y-1">
+            <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+              <div className="text-sm text-blue-700 space-y-2">
                 <div className="flex justify-between">
                   <span>환율:</span>
                   <span>1 {fromTokenInfo.symbol} = {(parseFloat(amountOut) / parseFloat(amountIn)).toFixed(6)} {toTokenInfo.symbol}</span>
@@ -354,7 +319,7 @@ export function TokenSwap({ selectedPool }: TokenSwapProps) {
               fromTokenApproval.needsApproval ||
               fromTokenApproval.isLoading
             }
-            className={`w-full py-3 px-4 rounded-lg font-semibold transition-colors ${
+            className={`w-full py-4 px-4 rounded-lg font-semibold text-lg transition-colors ${
               !amountIn || 
               !amountOut ||
               parseFloat(amountIn) <= 0 ||
@@ -376,23 +341,24 @@ export function TokenSwap({ selectedPool }: TokenSwapProps) {
 
           {/* Help Text */}
           {fromTokenApproval.needsApproval && (
-            <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
-              <p className="text-xs text-blue-700 flex items-start">
-                <FaInfoCircle className="mr-1 mt-0.5 flex-shrink-0" />
+            <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+              <p className="text-sm text-blue-700 flex items-start">
+                <FaInfoCircle className="mr-2 mt-0.5 flex-shrink-0" />
                 <span><strong>토큰 승인이란?</strong> DEX가 당신의 토큰을 사용할 수 있도록 허용하는 과정입니다.</span>
+              </p>
+            </div>
+          )}
+
+          {isSuccess && (
+            <div className="p-4 bg-green-100 border border-green-200 rounded-lg">
+              <p className="text-green-700 text-sm flex items-center">
+                <FaCheckCircle className="mr-2" />
+                스왑이 성공적으로 완료되었습니다! 잠시 후 모달이 닫힙니다.
               </p>
             </div>
           )}
         </div>
       )}
-
-      {isSuccess && (
-        <div className="mt-4 p-3 bg-green-100 border border-green-200 rounded-lg">
-          <p className="text-green-700 text-sm">
-            ✅ 스왑이 성공적으로 완료되었습니다!
-          </p>
-        </div>
-      )}
-    </div>
+    </Modal>
   )
 }

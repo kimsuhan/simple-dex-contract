@@ -3,11 +3,12 @@
 import { useClientOnly } from '@/hooks/useClientOnly';
 import { useTokenApproval } from '@/hooks/useTokenApproval';
 import { SIMPLE_DEX_ABI, SIMPLE_DEX_ADDRESS } from '@/lib/dex';
-import { ERC20_ABI, TOKENS } from '@/lib/tokens';
+import { ERC20_ABI, TOKENS, TokenInfo } from '@/lib/tokens';
 import { useState } from 'react';
 import { formatUnits, parseUnits } from 'viem';
 import { useAccount, useReadContract, useWaitForTransactionReceipt, useWriteContract } from 'wagmi';
 import { FaTint, FaLock, FaCheckCircle, FaInfoCircle, FaUser } from 'react-icons/fa';
+import { TokenSelector } from './TokenSelector';
 
 export function LiquidityPool() {
   const hasMounted = useClientOnly();
@@ -15,6 +16,8 @@ export function LiquidityPool() {
   const [tab, setTab] = useState<'add' | 'remove'>('add');
   const [amountA, setAmountA] = useState('');
   const [amountB, setAmountB] = useState('');
+  const [tokenA, setTokenA] = useState<TokenInfo | undefined>(TOKENS[0]);
+  const [tokenB, setTokenB] = useState<TokenInfo | undefined>(TOKENS[1]);
 
   const { writeContract, data: hash, isPending } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ 
@@ -34,38 +37,38 @@ export function LiquidityPool() {
 
   // 토큰 A 승인 상태 (클라이언트에서만)
   const tokenAApproval = useTokenApproval({
-    tokenAddress: TOKENS[0].address,
+    tokenAddress: tokenA?.address || '0x0000000000000000000000000000000000000000',
     spenderAddress: SIMPLE_DEX_ADDRESS,
     amount: hasMounted ? amountA : '',
-    decimals: TOKENS[0].decimals,
+    decimals: tokenA?.decimals || 18,
   });
 
   // 토큰 B 승인 상태 (클라이언트에서만)
   const tokenBApproval = useTokenApproval({
-    tokenAddress: TOKENS[1].address,
+    tokenAddress: tokenB?.address || '0x0000000000000000000000000000000000000000',
     spenderAddress: SIMPLE_DEX_ADDRESS,
     amount: hasMounted ? amountB : '',
-    decimals: TOKENS[1].decimals,
+    decimals: tokenB?.decimals || 18,
   });
 
   // 토큰 잔액 조회 (클라이언트에서만)
   const { data: tokenABalance, refetch: refetchTokenABalance } = useReadContract({
-    address: TOKENS[0].address,
+    address: tokenA?.address || '0x0000000000000000000000000000000000000000',
     abi: ERC20_ABI,
     functionName: 'balanceOf',
     args: address ? [address] : undefined,
     query: {
-      enabled: hasMounted && !!address && TOKENS[0].address !== '0x0000000000000000000000000000000000000000',
+      enabled: hasMounted && !!address && !!tokenA && tokenA.address !== '0x0000000000000000000000000000000000000000',
     },
   });
 
   const { data: tokenBBalance, refetch: refetchTokenBBalance } = useReadContract({
-    address: TOKENS[1].address,
+    address: tokenB?.address || '0x0000000000000000000000000000000000000000',
     abi: ERC20_ABI,
     functionName: 'balanceOf',
     args: address ? [address] : undefined,
     query: {
-      enabled: hasMounted && !!address && TOKENS[1].address !== '0x0000000000000000000000000000000000000000',
+      enabled: hasMounted && !!address && !!tokenB && tokenB.address !== '0x0000000000000000000000000000000000000000',
     },
   });
 
@@ -74,13 +77,15 @@ export function LiquidityPool() {
     address: SIMPLE_DEX_ADDRESS,
     abi: SIMPLE_DEX_ABI,
     functionName: 'pools',
-    args: [TOKENS[0].address, TOKENS[1].address],
+    args: tokenA && tokenB ? [tokenA.address, tokenB.address] : undefined,
     query: {
       enabled:
         hasMounted &&
+        !!tokenA &&
+        !!tokenB &&
         SIMPLE_DEX_ADDRESS !== '0x0000000000000000000000000000000000000000' &&
-        TOKENS[0].address !== '0x0000000000000000000000000000000000000000' &&
-        TOKENS[1].address !== '0x0000000000000000000000000000000000000000',
+        tokenA.address !== '0x0000000000000000000000000000000000000000' &&
+        tokenB.address !== '0x0000000000000000000000000000000000000000',
     },
   });
 
@@ -89,26 +94,26 @@ export function LiquidityPool() {
     address: SIMPLE_DEX_ADDRESS,
     abi: SIMPLE_DEX_ABI,
     functionName: 'getMyLiquidity',
-    args: address ? [TOKENS[0].address, TOKENS[1].address] : undefined,
+    args: address && tokenA && tokenB ? [tokenA.address, tokenB.address] : undefined,
     query: {
-      enabled: hasMounted && !!address && SIMPLE_DEX_ADDRESS !== '0x0000000000000000000000000000000000000000',
+      enabled: hasMounted && !!address && !!tokenA && !!tokenB && SIMPLE_DEX_ADDRESS !== '0x0000000000000000000000000000000000000000',
     },
   });
 
   console.log(poolData);
 
   const handleAddLiquidity = async () => {
-    if (!amountA || !amountB || !address) return;
+    if (!amountA || !amountB || !address || !tokenA || !tokenB) return;
 
     try {
-      const parsedAmountA = parseUnits(amountA, TOKENS[0].decimals);
-      const parsedAmountB = parseUnits(amountB, TOKENS[1].decimals);
+      const parsedAmountA = parseUnits(amountA, tokenA.decimals);
+      const parsedAmountB = parseUnits(amountB, tokenB.decimals);
 
       writeContract({
         address: SIMPLE_DEX_ADDRESS,
         abi: SIMPLE_DEX_ABI,
         functionName: 'addLiquidity',
-        args: [TOKENS[0].address, TOKENS[1].address, parsedAmountA, parsedAmountB],
+        args: [tokenA.address, tokenB.address, parsedAmountA, parsedAmountB],
       });
     } catch (error) {
       console.error('Add liquidity failed:', error);
@@ -180,116 +185,146 @@ export function LiquidityPool() {
       {/* Add Liquidity */}
       {tab === 'add' && (
         <div className="space-y-4">
-          {/* Token A Input */}
-          <div className="bg-gray-50 p-4 rounded-lg">
-            <div className="flex justify-between items-center mb-2">
-              <label className="text-sm font-medium text-gray-600">{TOKENS[0].symbol}</label>
-              <span className="text-xs text-gray-500">
-                잔액: {tokenABalance ? parseFloat(formatUnits(tokenABalance as bigint, TOKENS[0].decimals)).toFixed(4) : '0.0000'}
-              </span>
+          {/* Token Selection */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-600 mb-2">토큰 A</label>
+              <TokenSelector
+                tokens={TOKENS}
+                selectedToken={tokenA}
+                onTokenSelect={setTokenA}
+                excludeTokens={tokenB ? [tokenB] : []}
+                placeholder="토큰 A 선택"
+              />
             </div>
-            <input
-              type="number"
-              value={amountA}
-              onChange={(e) => setAmountA(e.target.value)}
-              placeholder="0.0"
-              className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-
-            {/* Token A Approval */}
-            {amountA && parseFloat(amountA) > 0 && (
-              <div className="mt-2">
-                {tokenAApproval.needsApproval ? (
-                  <div className="flex items-center justify-between bg-yellow-50 p-2 rounded-lg border border-yellow-200">
-                    <span className="text-xs text-yellow-700 flex items-center">
-                      <FaLock className="mr-1" />
-                      {TOKENS[0].symbol} 승인 필요
-                    </span>
-                    <button
-                      onClick={() => {
-                        console.log('Token A approve button clicked');
-                        tokenAApproval.approveMax();
-                      }}
-                      disabled={tokenAApproval.isLoading}
-                      className="px-3 py-1 text-xs bg-yellow-500 hover:bg-yellow-600 text-white rounded-md font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {tokenAApproval.isLoading ? '승인 중...' : '승인하기'}
-                    </button>
-                  </div>
-                ) : tokenAApproval.allowance !== undefined && tokenAApproval.allowance > 0n ? (
-                  <div className="flex items-center justify-between bg-green-50 p-2 rounded-lg border border-green-200">
-                    <span className="text-xs text-green-700 flex items-center">
-                      <FaCheckCircle className="mr-1" />
-                      {TOKENS[0].symbol} 승인 완료
-                    </span>
-                    <span className="text-xs text-green-600">한도: {parseFloat(tokenAApproval.allowanceFormatted).toFixed(2)}</span>
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-between bg-gray-50 p-2 rounded-lg border border-gray-200">
-                    <span className="text-xs text-gray-600">💭 {TOKENS[0].symbol} 승인 상태 확인 중...</span>
-                  </div>
-                )}
-              </div>
-            )}
+            <div>
+              <label className="block text-sm font-medium text-gray-600 mb-2">토큰 B</label>
+              <TokenSelector
+                tokens={TOKENS}
+                selectedToken={tokenB}
+                onTokenSelect={setTokenB}
+                excludeTokens={tokenA ? [tokenA] : []}
+                placeholder="토큰 B 선택"
+              />
+            </div>
           </div>
+
+          {/* Token A Input */}
+          {tokenA && (
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <div className="flex justify-between items-center mb-2">
+                <label className="text-sm font-medium text-gray-600">{tokenA.symbol} 수량</label>
+                <span className="text-xs text-gray-500">
+                  잔액: {tokenABalance ? parseFloat(formatUnits(tokenABalance as bigint, tokenA.decimals)).toFixed(4) : '0.0000'}
+                </span>
+              </div>
+              <input
+                type="number"
+                value={amountA}
+                onChange={(e) => setAmountA(e.target.value)}
+                placeholder="0.0"
+                className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+
+              {/* Token A Approval */}
+              {amountA && parseFloat(amountA) > 0 && (
+                <div className="mt-2">
+                  {tokenAApproval.needsApproval ? (
+                    <div className="flex items-center justify-between bg-yellow-50 p-2 rounded-lg border border-yellow-200">
+                      <span className="text-xs text-yellow-700 flex items-center">
+                        <FaLock className="mr-1" />
+                        {tokenA.symbol} 승인 필요
+                      </span>
+                      <button
+                        onClick={() => {
+                          console.log('Token A approve button clicked');
+                          tokenAApproval.approveMax();
+                        }}
+                        disabled={tokenAApproval.isLoading}
+                        className="px-3 py-1 text-xs bg-yellow-500 hover:bg-yellow-600 text-white rounded-md font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {tokenAApproval.isLoading ? '승인 중...' : '승인하기'}
+                      </button>
+                    </div>
+                  ) : tokenAApproval.allowance !== undefined && tokenAApproval.allowance > 0n ? (
+                    <div className="flex items-center justify-between bg-green-50 p-2 rounded-lg border border-green-200">
+                      <span className="text-xs text-green-700 flex items-center">
+                        <FaCheckCircle className="mr-1" />
+                        {tokenA.symbol} 승인 완료
+                      </span>
+                      <span className="text-xs text-green-600">한도: {parseFloat(tokenAApproval.allowanceFormatted).toFixed(2)}</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between bg-gray-50 p-2 rounded-lg border border-gray-200">
+                      <span className="text-xs text-gray-600">💭 {tokenA.symbol} 승인 상태 확인 중...</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Token B Input */}
-          <div className="bg-gray-50 p-4 rounded-lg">
-            <div className="flex justify-between items-center mb-2">
-              <label className="text-sm font-medium text-gray-600">{TOKENS[1].symbol}</label>
-              <span className="text-xs text-gray-500">
-                잔액: {tokenBBalance ? parseFloat(formatUnits(tokenBBalance as bigint, TOKENS[1].decimals)).toFixed(4) : '0.0000'}
-              </span>
-            </div>
-            <input
-              type="number"
-              value={amountB}
-              onChange={(e) => setAmountB(e.target.value)}
-              placeholder="0.0"
-              className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-
-            {/* Token B Approval */}
-            {amountB && parseFloat(amountB) > 0 && (
-              <div className="mt-2">
-                {tokenBApproval.needsApproval ? (
-                  <div className="flex items-center justify-between bg-yellow-50 p-2 rounded-lg border border-yellow-200">
-                    <span className="text-xs text-yellow-700 flex items-center">
-                      <FaLock className="mr-1" />
-                      {TOKENS[1].symbol} 승인 필요
-                    </span>
-                    <button
-                      onClick={() => {
-                        console.log('Token B approve button clicked');
-                        tokenBApproval.approveMax();
-                      }}
-                      disabled={tokenBApproval.isLoading}
-                      className="px-3 py-1 text-xs bg-yellow-500 hover:bg-yellow-600 text-white rounded-md font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {tokenBApproval.isLoading ? '승인 중...' : '승인하기'}
-                    </button>
-                  </div>
-                ) : tokenBApproval.allowance !== undefined && tokenBApproval.allowance > 0n ? (
-                  <div className="flex items-center justify-between bg-green-50 p-2 rounded-lg border border-green-200">
-                    <span className="text-xs text-green-700 flex items-center">
-                      <FaCheckCircle className="mr-1" />
-                      {TOKENS[1].symbol} 승인 완료
-                    </span>
-                    <span className="text-xs text-green-600">한도: {parseFloat(tokenBApproval.allowanceFormatted).toFixed(2)}</span>
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-between bg-gray-50 p-2 rounded-lg border border-gray-200">
-                    <span className="text-xs text-gray-600">💭 {TOKENS[1].symbol} 승인 상태 확인 중...</span>
-                  </div>
-                )}
+          {tokenB && (
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <div className="flex justify-between items-center mb-2">
+                <label className="text-sm font-medium text-gray-600">{tokenB.symbol} 수량</label>
+                <span className="text-xs text-gray-500">
+                  잔액: {tokenBBalance ? parseFloat(formatUnits(tokenBBalance as bigint, tokenB.decimals)).toFixed(4) : '0.0000'}
+                </span>
               </div>
-            )}
-          </div>
+              <input
+                type="number"
+                value={amountB}
+                onChange={(e) => setAmountB(e.target.value)}
+                placeholder="0.0"
+                className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+
+              {/* Token B Approval */}
+              {amountB && parseFloat(amountB) > 0 && (
+                <div className="mt-2">
+                  {tokenBApproval.needsApproval ? (
+                    <div className="flex items-center justify-between bg-yellow-50 p-2 rounded-lg border border-yellow-200">
+                      <span className="text-xs text-yellow-700 flex items-center">
+                        <FaLock className="mr-1" />
+                        {tokenB.symbol} 승인 필요
+                      </span>
+                      <button
+                        onClick={() => {
+                          console.log('Token B approve button clicked');
+                          tokenBApproval.approveMax();
+                        }}
+                        disabled={tokenBApproval.isLoading}
+                        className="px-3 py-1 text-xs bg-yellow-500 hover:bg-yellow-600 text-white rounded-md font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {tokenBApproval.isLoading ? '승인 중...' : '승인하기'}
+                      </button>
+                    </div>
+                  ) : tokenBApproval.allowance !== undefined && tokenBApproval.allowance > 0n ? (
+                    <div className="flex items-center justify-between bg-green-50 p-2 rounded-lg border border-green-200">
+                      <span className="text-xs text-green-700 flex items-center">
+                        <FaCheckCircle className="mr-1" />
+                        {tokenB.symbol} 승인 완료
+                      </span>
+                      <span className="text-xs text-green-600">한도: {parseFloat(tokenBApproval.allowanceFormatted).toFixed(2)}</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between bg-gray-50 p-2 rounded-lg border border-gray-200">
+                      <span className="text-xs text-gray-600">💭 {tokenB.symbol} 승인 상태 확인 중...</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Add Liquidity Button */}
           <button
             onClick={handleAddLiquidity}
             disabled={
+              !tokenA ||
+              !tokenB ||
               !amountA ||
               !amountB ||
               isPending ||
@@ -300,6 +335,8 @@ export function LiquidityPool() {
               tokenBApproval.isLoading
             }
             className={`w-full py-3 px-4 rounded-lg font-semibold transition-colors ${
+              !tokenA ||
+              !tokenB ||
               !amountA ||
               !amountB ||
               isPending ||
@@ -312,7 +349,9 @@ export function LiquidityPool() {
                 : 'bg-blue-500 hover:bg-blue-600 text-white'
             }`}
           >
-            {isPending || isConfirming
+            {!tokenA || !tokenB
+              ? '토큰을 선택하세요'
+              : isPending || isConfirming
               ? '추가 중...'
               : tokenAApproval.needsApproval || tokenBApproval.needsApproval
               ? '토큰 승인이 필요합니다'
@@ -344,19 +383,21 @@ export function LiquidityPool() {
       )}
 
       {/* Pool Info */}
-      {poolData && (
+      {poolData && tokenA && tokenB && (
         <div className="mt-6 space-y-4">
           {/* 전체 풀 정보 */}
           <div className="bg-blue-50 p-4 rounded-lg">
-            <h4 className="font-semibold text-blue-800 mb-3">전체 풀 정보</h4>
+            <h4 className="font-semibold text-blue-800 mb-3">
+              {tokenA.symbol} / {tokenB.symbol} 풀 정보
+            </h4>
             <div className="text-sm text-blue-700 space-y-2">
               <div className="flex justify-between">
-                <span>총 {TOKENS[0].symbol}:</span>
-                <span>{parseFloat(formatUnits((poolData as unknown as [bigint, bigint, bigint])[0], 18)).toFixed(4)}</span>
+                <span>총 {tokenA.symbol}:</span>
+                <span>{parseFloat(formatUnits((poolData as unknown as [bigint, bigint, bigint])[0], tokenA.decimals)).toFixed(4)}</span>
               </div>
               <div className="flex justify-between">
-                <span>총 {TOKENS[1].symbol}:</span>
-                <span>{parseFloat(formatUnits((poolData as unknown as [bigint, bigint, bigint])[1], 18)).toFixed(4)}</span>
+                <span>총 {tokenB.symbol}:</span>
+                <span>{parseFloat(formatUnits((poolData as unknown as [bigint, bigint, bigint])[1], tokenB.decimals)).toFixed(4)}</span>
               </div>
               <div className="flex justify-between">
                 <span>전체 유동성:</span>
@@ -397,24 +438,24 @@ export function LiquidityPool() {
                     <p className="text-xs text-green-800 font-medium mb-1">💡 예상 회수 가능 토큰:</p>
                     <div className="text-xs text-green-700 space-y-1">
                       <div className="flex justify-between">
-                        <span>{TOKENS[0].symbol}:</span>
+                        <span>{tokenA.symbol}:</span>
                         <span>
                           ~
                           {(
                             (parseFloat(formatUnits(userLiquidity as bigint, 18)) /
                               parseFloat(formatUnits((poolData as unknown as [bigint, bigint, bigint])[2], 18))) *
-                            parseFloat(formatUnits((poolData as unknown as [bigint, bigint, bigint])[0], 18))
+                            parseFloat(formatUnits((poolData as unknown as [bigint, bigint, bigint])[0], tokenA.decimals))
                           ).toFixed(4)}
                         </span>
                       </div>
                       <div className="flex justify-between">
-                        <span>{TOKENS[1].symbol}:</span>
+                        <span>{tokenB.symbol}:</span>
                         <span>
                           ~
                           {(
                             (parseFloat(formatUnits(userLiquidity as bigint, 18)) /
                               parseFloat(formatUnits((poolData as unknown as [bigint, bigint, bigint])[2], 18))) *
-                            parseFloat(formatUnits((poolData as unknown as [bigint, bigint, bigint])[1], 18))
+                            parseFloat(formatUnits((poolData as unknown as [bigint, bigint, bigint])[1], tokenB.decimals))
                           ).toFixed(4)}
                         </span>
                       </div>

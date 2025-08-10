@@ -1,17 +1,19 @@
 import { EthersService } from '@/modules/ethers/ethers.service';
 import { LiquidityEvent } from '@/modules/pool/interface/liqudity-event.interface';
+import { SwapEvent } from '@/modules/pool/interface/swap-event.interface';
 import { RedisService } from '@/modules/redis/redis.service';
 import { Injectable } from '@nestjs/common';
 import { EventLog, Log } from 'ethers';
 
 @Injectable()
 export class PoolService {
-  private readonly CACHE_KEYS = {
+  public readonly CACHE_KEYS = {
     POOLS: 'pools',
     LAST_BLOCK: 'last_processed_block',
     POOL_EVENTS: 'pool_events:',
     SWAP_EVENTS: 'swap_events:',
     LIQUIDITY_EVENTS: 'liquidity_events:',
+    KNOWN_POOLS: 'known_pools',
   };
 
   private readonly CACHE_TTL = {
@@ -24,14 +26,25 @@ export class PoolService {
     private readonly redis: RedisService,
   ) {}
 
+  /**
+   * 모든 캐시 삭제
+   */
+  async deleteAll() {
+    await this.redis.flushall();
+  }
+
+  /**
+   * 초기화
+   */
   async init() {
     await this.initializeFromBlockchain();
     void this.setupEventListeners();
   }
+
   /**
    * 초기화: 과거 모든 이벤트 수집
    */
-  async initializeFromBlockchain() {
+  private async initializeFromBlockchain() {
     console.log('🚀 초기화 시작: 과거 이벤트 수집 중...');
 
     try {
@@ -77,14 +90,14 @@ export class PoolService {
         _provider,
         tokenA,
         tokenB,
-        _amountA,
-        _amountB,
-        _liquidity,
-        _event,
+        amountA,
+        amountB,
+        liquidity,
+        event: EventLog,
       ) => {
         console.log('📈 새 유동성 추가:', tokenA, tokenB);
-        // await this.processLiquidityEvent(event);
-        // await this.updatePoolCache();
+        await this.processLiquidityEvent(event);
+        await this.updatePoolCache();
       },
     );
 
@@ -139,24 +152,22 @@ export class PoolService {
       toBlock,
     );
 
-    // console.log(liquidityEvents);
-
     // Swap 이벤트 수집
-    // const swapFilter = this.ethers.dexContract.filters.Swap();
-    // const swapEvents = await this.ethers.dexContract.queryFilter(
-    //   swapFilter,
-    //   fromBlock,
-    //   toBlock,
-    // );
+    const swapFilter = this.ethers.dexContract.filters.Swap();
+    const swapEvents = await this.ethers.dexContract.queryFilter(
+      swapFilter,
+      fromBlock,
+      toBlock,
+    );
 
     // 이벤트 처리
     for (const event of liquidityEvents) {
       await this.processLiquidityEvent(event);
     }
 
-    // for (const event of swapEvents) {
-    //   await this.processSwapEvent(event);
-    // }
+    for (const event of swapEvents) {
+      await this.processSwapEvent(event);
+    }
   }
 
   // 유동성 이벤트 처리
@@ -218,7 +229,7 @@ export class PoolService {
    */
   async addEventToPool(
     poolKey: string,
-    eventData: LiquidityEvent,
+    eventData: LiquidityEvent | SwapEvent,
     eventType: string,
   ) {
     const eventKey = `${this.CACHE_KEYS.POOL_EVENTS}${poolKey}:${eventType}`;
@@ -233,36 +244,25 @@ export class PoolService {
    * 모든 풀 목록 조회
    */
   async getPools() {
-    // try {
-    const cachedPools = await this.redis.get(this.CACHE_KEYS.POOLS);
-    console.log('cachedPools', cachedPools);
-
-    // if (cachedPools) {
-    //   return res.json({
-    //     success: true,
-    //     data: JSON.parse(cachedPools),
-    //     cached: true,
-    //   });
-    // }
-
-    if (!cachedPools) {
+    let cachedPools = await this.redis.get(this.CACHE_KEYS.POOLS);
+    if (!cachedPools || cachedPools === '[]') {
       await this.updatePoolCache();
+      cachedPools = await this.redis.get(this.CACHE_KEYS.POOLS);
     }
 
-    return cachedPools;
-    // const pools = await this.redis.get(this.CACHE_KEYS.POOLS);
+    if (!cachedPools) {
+      return [];
+    }
 
-    // res.json({
-    //   success: true,
-    //   data: JSON.parse(pools),
-    //   cached: false,
-    // });
-    // } catch (error) {
-    // res.status(500).json({
-    //   success: false,
-    //   error: error.message,
-    // });
-    // }
+    const returnPools = JSON.parse(cachedPools) as {
+      tokenA: string;
+      tokenB: string;
+      tokenAReserve: string;
+      tokenBReserve: string;
+      totalLiquidity: string;
+    }[];
+
+    return { data: returnPools };
   }
 
   /**
@@ -270,7 +270,7 @@ export class PoolService {
    */
   async updatePoolCache() {
     try {
-      const poolKeys = await this.redis.smembers('known_pools');
+      const poolKeys = await this.redis.smembers(this.CACHE_KEYS.KNOWN_POOLS);
       console.log('poolKeys', poolKeys);
       const pools: {
         tokenA: string;
@@ -340,10 +340,13 @@ export class PoolService {
    */
   async addPoolIfNew(tokenA: string, tokenB: string) {
     const poolKey = this.getPoolKey(tokenA, tokenB);
-    const exists = await this.redis.sismember('known_pools', poolKey);
+    const exists = await this.redis.sismember(
+      this.CACHE_KEYS.KNOWN_POOLS,
+      poolKey,
+    );
 
     if (!exists) {
-      await this.redis.sadd('known_pools', poolKey);
+      await this.redis.sadd(this.CACHE_KEYS.KNOWN_POOLS, poolKey);
       console.log(`🆕 새 풀 발견: ${poolKey}`);
     }
   }
@@ -354,7 +357,7 @@ export class PoolService {
    * @returns
    */
   async getStats() {
-    const poolKeys = await this.redis.smembers('known_pools');
+    const poolKeys = await this.redis.smembers(this.CACHE_KEYS.KNOWN_POOLS);
     const totalPools = poolKeys.length;
 
     // 최근 24시간 이벤트 수 계산
@@ -422,56 +425,32 @@ export class PoolService {
   }
 
   //   // 스왑 이벤트 처리
-  //   async processSwapEvent(event) {
-  //     const block = await event.getBlock();
-  //     const eventData = {
-  //       id: `${event.transactionHash}-${event.logIndex}`,
-  //       transactionHash: event.transactionHash,
-  //       blockNumber: event.blockNumber,
-  //       timestamp: block.timestamp,
-  //       user: event.args.user,
-  //       tokenIn: event.args.tokenIn,
-  //       tokenOut: event.args.tokenOut,
-  //       amountIn: event.args.amountIn.toString(),
-  //       amountOut: event.args.amountOut.toString(),
-  //       type: 'SWAP',
-  //     };
+  async processSwapEvent(event: EventLog | Log) {
+    const block = await event.getBlock();
+    const arg = event['args'] as {
+      user: string;
+      tokenIn: string;
+      tokenOut: string;
+      amountIn: string;
+      amountOut: string;
+    };
 
-  //     // 풀별 이벤트 저장
-  //     const poolKey = this.getPoolKey(event.args.tokenIn, event.args.tokenOut);
-  //     await this.addEventToPool(poolKey, eventData, 'swap');
-  //   }
+    const eventData: SwapEvent = {
+      id: `${event.transactionHash}-${event.index}`,
+      transactionHash: event.transactionHash,
+      blockNumber: event.blockNumber,
+      timestamp: block.timestamp,
+      user: arg.user,
+      tokenIn: arg.tokenIn,
+      tokenOut: arg.tokenOut,
+      amountIn: arg.amountIn.toString(),
+      amountOut: arg.amountOut.toString(),
+    };
+
+    // 풀별 이벤트 저장
+    const poolKey = this.getPoolKey(arg.tokenIn, arg.tokenOut);
+    await this.addEventToPool(poolKey, eventData, 'swap');
+  }
 }
 
 //   }
-
-//   // API 라우트 설정
-//   setupRoutes() {
-//     this.app.use(express.json());
-
-//     // 특정 풀 정보 조회
-//     this.app.get('/api/pools/:tokenA/:tokenB', async (req, res) => {
-//       try {
-//         const { tokenA, tokenB } = req.params;
-//         const poolKey = this.getPoolKey(tokenA, tokenB);
-
-//         // 풀 기본 정보
-//         const poolData = await this.getPoolData(tokenA, tokenB);
-
-//         // 풀 이벤트 기록
-//         const events = await this.getPoolEvents(poolKey);
-
-//         res.json({
-//           success: true,
-//           data: {
-//             pool: poolData,
-//             events: events,
-//           },
-//         });
-//       } catch (error) {
-//         res.status(500).json({
-//           success: false,
-//           error: error.message,
-//         });
-//       }
-//     });

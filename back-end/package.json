@@ -25,6 +25,8 @@
     "@nestjs/core": "^11.0.1",
     "@nestjs/microservices": "^11.1.6",
     "@nestjs/platform-express": "^11.0.1",
+    "@nestjs/schedule": "^6.0.0",
+    "@nestjs/swagger": "^11.2.0",
     "ethers": "^6.15.0",
     "ioredis": "^5.7.0",
     "reflect-metadata": "^0.2.2",
