@@ -7,6 +7,7 @@ import { ERC20_ABI, TOKENS } from '@/lib/tokens';
 import { useState } from 'react';
 import { formatUnits, parseUnits } from 'viem';
 import { useAccount, useReadContract, useWaitForTransactionReceipt, useWriteContract } from 'wagmi';
+import { FaTint, FaLock, FaCheckCircle, FaInfoCircle, FaUser } from 'react-icons/fa';
 
 export function LiquidityPool() {
   const hasMounted = useClientOnly();
@@ -153,7 +154,7 @@ export function LiquidityPool() {
   return (
     <div className="bg-white p-6 rounded-lg shadow-lg border">
       <h3 className="text-lg font-semibold mb-6 text-gray-800 flex items-center">
-        <span className="mr-2">💧</span>
+        <FaTint className="mr-2 text-blue-600" />
         유동성 풀
       </h3>
 
@@ -200,7 +201,10 @@ export function LiquidityPool() {
               <div className="mt-2">
                 {tokenAApproval.needsApproval ? (
                   <div className="flex items-center justify-between bg-yellow-50 p-2 rounded-lg border border-yellow-200">
-                    <span className="text-xs text-yellow-700">🔒 {TOKENS[0].symbol} 승인 필요</span>
+                    <span className="text-xs text-yellow-700 flex items-center">
+                      <FaLock className="mr-1" />
+                      {TOKENS[0].symbol} 승인 필요
+                    </span>
                     <button
                       onClick={() => {
                         console.log('Token A approve button clicked');
@@ -214,7 +218,10 @@ export function LiquidityPool() {
                   </div>
                 ) : tokenAApproval.allowance !== undefined && tokenAApproval.allowance > 0n ? (
                   <div className="flex items-center justify-between bg-green-50 p-2 rounded-lg border border-green-200">
-                    <span className="text-xs text-green-700">✅ {TOKENS[0].symbol} 승인 완료</span>
+                    <span className="text-xs text-green-700 flex items-center">
+                      <FaCheckCircle className="mr-1" />
+                      {TOKENS[0].symbol} 승인 완료
+                    </span>
                     <span className="text-xs text-green-600">한도: {parseFloat(tokenAApproval.allowanceFormatted).toFixed(2)}</span>
                   </div>
                 ) : (
@@ -247,7 +254,10 @@ export function LiquidityPool() {
               <div className="mt-2">
                 {tokenBApproval.needsApproval ? (
                   <div className="flex items-center justify-between bg-yellow-50 p-2 rounded-lg border border-yellow-200">
-                    <span className="text-xs text-yellow-700">🔒 {TOKENS[1].symbol} 승인 필요</span>
+                    <span className="text-xs text-yellow-700 flex items-center">
+                      <FaLock className="mr-1" />
+                      {TOKENS[1].symbol} 승인 필요
+                    </span>
                     <button
                       onClick={() => {
                         console.log('Token B approve button clicked');
@@ -261,7 +271,10 @@ export function LiquidityPool() {
                   </div>
                 ) : tokenBApproval.allowance !== undefined && tokenBApproval.allowance > 0n ? (
                   <div className="flex items-center justify-between bg-green-50 p-2 rounded-lg border border-green-200">
-                    <span className="text-xs text-green-700">✅ {TOKENS[1].symbol} 승인 완료</span>
+                    <span className="text-xs text-green-700 flex items-center">
+                      <FaCheckCircle className="mr-1" />
+                      {TOKENS[1].symbol} 승인 완료
+                    </span>
                     <span className="text-xs text-green-600">한도: {parseFloat(tokenBApproval.allowanceFormatted).toFixed(2)}</span>
                   </div>
                 ) : (
@@ -309,9 +322,10 @@ export function LiquidityPool() {
           {/* Help Text */}
           {(tokenAApproval.needsApproval || tokenBApproval.needsApproval) && (
             <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
-              <p className="text-xs text-blue-700">
-                💡 <strong>토큰 승인이란?</strong> DEX가 당신의 토큰을 사용할 수 있도록 허용하는 과정입니다. 각 토큰마다 한 번만 승인하면 되며, 이후
-                거래에서는 승인이 필요하지 않습니다.
+              <p className="text-xs text-blue-700 flex items-start">
+                <FaInfoCircle className="mr-1 mt-0.5 flex-shrink-0" />
+                <span><strong>토큰 승인이란?</strong> DEX가 당신의 토큰을 사용할 수 있도록 허용하는 과정입니다. 각 토큰마다 한 번만 승인하면 되며, 이후
+                거래에서는 승인이 필요하지 않습니다.</span>
               </p>
             </div>
           )}
@@ -354,7 +368,8 @@ export function LiquidityPool() {
           {/* 사용자 개인 공급량 */}
           <div className="bg-green-50 p-4 rounded-lg border border-green-200">
             <h4 className="font-semibold text-green-800 mb-3 flex items-center">
-              <span className="mr-2">👤</span>내 공급량
+              <FaUser className="mr-2" />
+              내 공급량
             </h4>
             <div className="text-sm text-green-700 space-y-2">
               <div className="flex justify-between">
@@ -420,7 +435,10 @@ export function LiquidityPool() {
 
       {isSuccess && (
         <div className="mt-4 p-3 bg-green-100 border border-green-200 rounded-lg">
-          <p className="text-green-700 text-sm">✅ 유동성 추가가 성공적으로 완료되었습니다!</p>
+          <p className="text-green-700 text-sm flex items-center">
+            <FaCheckCircle className="mr-1" />
+            유동성 추가가 성공적으로 완료되었습니다!
+          </p>
         </div>
       )}
     </div>

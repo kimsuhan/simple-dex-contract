@@ -7,6 +7,8 @@ import { SIMPLE_DEX_ABI, SIMPLE_DEX_ADDRESS } from '@/lib/dex'
 import { TOKENS, ERC20_ABI } from '@/lib/tokens'
 import { useTokenApproval } from '@/hooks/useTokenApproval'
 import { useClientOnly } from '@/hooks/useClientOnly'
+import { FaArrowsAltV, FaLock, FaCheckCircle, FaInfoCircle } from 'react-icons/fa'
+import { RiTokenSwapLine } from 'react-icons/ri'
 
 export function TokenSwap() {
   const hasMounted = useClientOnly()
@@ -179,7 +181,7 @@ export function TokenSwap() {
   return (
     <div className="bg-white p-6 rounded-lg shadow-lg border">
       <h3 className="text-lg font-semibold mb-6 text-gray-800 flex items-center">
-        <span className="mr-2">🔄</span>
+        <RiTokenSwapLine className="mr-2 text-blue-600" />
         토큰 스왑
       </h3>
 
@@ -219,8 +221,9 @@ export function TokenSwap() {
               <div className="mt-2">
                 {fromTokenApproval.needsApproval ? (
                   <div className="flex items-center justify-between bg-yellow-50 p-2 rounded-lg border border-yellow-200">
-                    <span className="text-xs text-yellow-700">
-                      🔒 {TOKENS[fromToken].symbol} 승인 필요
+                    <span className="text-xs text-yellow-700 flex items-center">
+                      <FaLock className="mr-1" />
+                      {TOKENS[fromToken].symbol} 승인 필요
                     </span>
                     <button
                       onClick={fromTokenApproval.approveMax}
@@ -232,7 +235,10 @@ export function TokenSwap() {
                   </div>
                 ) : fromTokenApproval.allowance !== undefined && fromTokenApproval.allowance > 0n ? (
                   <div className="flex items-center justify-between bg-green-50 p-2 rounded-lg border border-green-200">
-                    <span className="text-xs text-green-700">✅ {TOKENS[fromToken].symbol} 승인 완료</span>
+                    <span className="text-xs text-green-700 flex items-center">
+                      <FaCheckCircle className="mr-1" />
+                      {TOKENS[fromToken].symbol} 승인 완료
+                    </span>
                   </div>
                 ) : (
                   <div className="flex items-center justify-between bg-gray-50 p-2 rounded-lg border border-gray-200">
@@ -247,11 +253,9 @@ export function TokenSwap() {
           <div className="flex justify-center">
             <button 
               onClick={handleSwapTokens}
-              className="p-2 bg-blue-500 hover:bg-blue-600 rounded-full transition-colors"
+              className="p-3 bg-blue-500 hover:bg-blue-600 rounded-full transition-colors shadow-md hover:shadow-lg"
             >
-              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
-              </svg>
+              <FaArrowsAltV className="text-white text-lg" />
             </button>
           </div>
 
@@ -328,8 +332,9 @@ export function TokenSwap() {
           {/* Help Text */}
           {fromTokenApproval.needsApproval && (
             <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
-              <p className="text-xs text-blue-700">
-                💡 <strong>토큰 승인이란?</strong> DEX가 당신의 토큰을 사용할 수 있도록 허용하는 과정입니다.
+              <p className="text-xs text-blue-700 flex items-start">
+                <FaInfoCircle className="mr-1 mt-0.5 flex-shrink-0" />
+                <span><strong>토큰 승인이란?</strong> DEX가 당신의 토큰을 사용할 수 있도록 허용하는 과정입니다.</span>
               </p>
             </div>
           )}

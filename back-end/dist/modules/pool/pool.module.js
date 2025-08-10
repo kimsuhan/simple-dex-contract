@@ -8,6 +8,7 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.PoolModule = void 0;
 const ethers_module_1 = require("../ethers/ethers.module");
+const pool_controller_1 = require("./pool.controller");
 const redis_module_1 = require("../redis/redis.module");
 const common_1 = require("@nestjs/common");
 const pool_service_1 = require("./pool.service");
@@ -17,6 +18,7 @@ exports.PoolModule = PoolModule;
 exports.PoolModule = PoolModule = __decorate([
     (0, common_1.Module)({
         imports: [ethers_module_1.EthersModule, redis_module_1.RedisModule],
+        controllers: [pool_controller_1.PoolController],
         providers: [pool_service_1.PoolService],
         exports: [pool_service_1.PoolService],
     })

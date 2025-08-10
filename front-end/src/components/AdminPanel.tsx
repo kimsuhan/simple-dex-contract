@@ -5,6 +5,8 @@ import { useAccount, useReadContract, useWriteContract, useWaitForTransactionRec
 import { SIMPLE_DEX_ABI, SIMPLE_DEX_ADDRESS } from '@/lib/dex'
 import { TOKENS } from '@/lib/tokens'
 import { useClientOnly } from '@/hooks/useClientOnly'
+import { FaTrashAlt, FaExclamationTriangle, FaChevronDown } from 'react-icons/fa'
+import { MdAdminPanelSettings } from 'react-icons/md'
 
 export function AdminPanel() {
   const hasMounted = useClientOnly()
@@ -78,7 +80,7 @@ export function AdminPanel() {
     <div className="bg-red-50 border border-red-200 rounded-lg p-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-2">
-          <span className="text-lg">🔧</span>
+          <MdAdminPanelSettings className="text-red-600 text-lg" />
           <h4 className="font-semibold text-red-800">관리자 패널</h4>
           <span className="px-2 py-1 text-xs bg-red-100 text-red-600 rounded-full">
             Owner Only
@@ -88,14 +90,9 @@ export function AdminPanel() {
           onClick={() => setIsExpanded(!isExpanded)}
           className="text-red-600 hover:text-red-700 focus:outline-none"
         >
-          <svg 
-            className={`w-5 h-5 transform transition-transform ${isExpanded ? 'rotate-180' : ''}`} 
-            fill="none" 
-            stroke="currentColor" 
-            viewBox="0 0 24 24"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
+          <FaChevronDown 
+            className={`w-4 h-4 transform transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+          />
         </button>
       </div>
 
@@ -103,13 +100,16 @@ export function AdminPanel() {
         <div className="mt-4 space-y-4">
           <div className="bg-white p-4 rounded-lg border border-red-200">
             <h5 className="font-semibold text-gray-800 mb-2 flex items-center">
-              <span className="mr-2">🗑️</span>
+              <FaTrashAlt className="mr-2 text-red-500" />
               풀 초기화
             </h5>
             <p className="text-sm text-gray-600 mb-4">
               현재 {TOKENS[0].symbol}/{TOKENS[1].symbol} 풀의 모든 유동성을 제거합니다.
               <br />
-              <strong className="text-red-600">⚠️ 주의: 이 작업은 되돌릴 수 없습니다!</strong>
+              <strong className="text-red-600 flex items-center">
+                <FaExclamationTriangle className="mr-1" />
+                주의: 이 작업은 되돌릴 수 없습니다!
+              </strong>
             </p>
             
             <button

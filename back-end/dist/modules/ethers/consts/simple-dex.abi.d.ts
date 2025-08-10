@@ -1,4 +1,22 @@
 declare const _default: ({
+    inputs: never[];
+    stateMutability: string;
+    type: string;
+    name?: undefined;
+    anonymous?: undefined;
+    outputs?: undefined;
+} | {
+    inputs: {
+        internalType: string;
+        name: string;
+        type: string;
+    }[];
+    name: string;
+    type: string;
+    stateMutability?: undefined;
+    anonymous?: undefined;
+    outputs?: undefined;
+} | {
     anonymous: boolean;
     inputs: {
         indexed: boolean;
@@ -8,8 +26,8 @@ declare const _default: ({
     }[];
     name: string;
     type: string;
-    outputs?: undefined;
     stateMutability?: undefined;
+    outputs?: undefined;
 } | {
     inputs: {
         internalType: string;

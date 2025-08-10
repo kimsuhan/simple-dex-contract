@@ -24,6 +24,10 @@ let PoolService = class PoolService {
             SWAP_EVENTS: 'swap_events:',
             LIQUIDITY_EVENTS: 'liquidity_events:',
         };
+        this.CACHE_TTL = {
+            POOLS: 300,
+            EVENTS: 3600,
+        };
     }
     async init() {
         await this.initializeFromBlockchain();
@@ -32,13 +36,13 @@ let PoolService = class PoolService {
     async initializeFromBlockchain() {
         console.log('🚀 초기화 시작: 과거 이벤트 수집 중...');
         try {
-            let fromBlock = 0;
+            let fromBlock = await this.redis.get(this.CACHE_KEYS.LAST_BLOCK);
             if (!fromBlock) {
-                fromBlock = Number(process.env.CONTRACT_DEPLOY_BLOCK) || 0;
+                fromBlock = process.env.CONTRACT_DEPLOY_BLOCK || '0';
             }
             const currentBlock = await this.ethers.provider.getBlockNumber();
             console.log(`📦 블록 범위: ${fromBlock} → ${currentBlock}`);
-            await this.syncEventsFromBlockchain(fromBlock, currentBlock);
+            await this.syncEventsFromBlockchain(Number(fromBlock), currentBlock);
             console.log('✅ 초기화 완료!');
         }
         catch (error) {
@@ -76,7 +80,122 @@ let PoolService = class PoolService {
     async processBatchEvents(fromBlock, toBlock) {
         const liquidityFilter = this.ethers.dexContract.filters.LiquidityAdded();
         const liquidityEvents = await this.ethers.dexContract.queryFilter(liquidityFilter, fromBlock, toBlock);
-        console.log(liquidityEvents);
+        for (const event of liquidityEvents) {
+            await this.processLiquidityEvent(event);
+        }
+    }
+    async processLiquidityEvent(event) {
+        const block = await event.getBlock();
+        const arg = event['args'];
+        const eventData = {
+            id: `${event.transactionHash}-${event.index}`,
+            transactionHash: event.transactionHash,
+            blockNumber: event.blockNumber,
+            timestamp: block.timestamp,
+            provider: arg.provider,
+            tokenA: arg.tokenA,
+            tokenB: arg.tokenB,
+            amountA: arg.amountA.toString(),
+            amountB: arg.amountB.toString(),
+            liquidity: arg.liquidity.toString(),
+            type: 'LIQUIDITY_ADDED',
+        };
+        const poolKey = this.getPoolKey(arg.tokenA, arg.tokenB);
+        await this.addEventToPool(poolKey, eventData, 'liquidity');
+        await this.addPoolIfNew(arg.tokenA, arg.tokenB);
+    }
+    getPoolKey(tokenA, tokenB) {
+        return tokenA.toLowerCase() < tokenB.toLowerCase()
+            ? `${tokenA.toLowerCase()}-${tokenB.toLowerCase()}`
+            : `${tokenB.toLowerCase()}-${tokenA.toLowerCase()}`;
+    }
+    async addEventToPool(poolKey, eventData, eventType) {
+        const eventKey = `${this.CACHE_KEYS.POOL_EVENTS}${poolKey}:${eventType}`;
+        await this.redis.lpush(eventKey, JSON.stringify(eventData));
+        await this.redis.expire(eventKey, this.CACHE_TTL.EVENTS);
+        await this.redis.ltrim(eventKey, 0, 999);
+    }
+    async getPools() {
+        const cachedPools = await this.redis.get(this.CACHE_KEYS.POOLS);
+        console.log('cachedPools', cachedPools);
+        if (!cachedPools) {
+            await this.updatePoolCache();
+        }
+        return cachedPools;
+    }
+    async updatePoolCache() {
+        try {
+            const poolKeys = await this.redis.smembers('known_pools');
+            console.log('poolKeys', poolKeys);
+            const pools = [];
+            for (const poolKey of poolKeys) {
+                const [tokenA, tokenB] = poolKey.split('-');
+                try {
+                    const poolData = await this.getPoolData(tokenA, tokenB);
+                    pools.push(poolData);
+                }
+                catch (error) {
+                    console.warn(`⚠️  풀 ${poolKey} 데이터 조회 실패:`, String(error));
+                }
+            }
+            await this.redis.setex(this.CACHE_KEYS.POOLS, this.CACHE_TTL.POOLS, JSON.stringify(pools));
+            console.log(`📊 풀 캐시 업데이트 완료: ${pools.length}개 풀`);
+        }
+        catch (error) {
+            console.error('❌ 풀 캐시 업데이트 실패:', error);
+        }
+    }
+    async getPoolData(tokenA, tokenB) {
+        try {
+            const poolData = (await this.ethers.dexContract.pools(tokenA, tokenB));
+            return {
+                tokenA,
+                tokenB,
+                tokenAReserve: poolData.tokenAReserve.toString(),
+                tokenBReserve: poolData.tokenBReserve.toString(),
+                totalLiquidity: poolData.totalLiquidity.toString(),
+            };
+        }
+        catch (error) {
+            throw new Error(`풀 데이터 조회 실패: ${String(error)}`);
+        }
+    }
+    async addPoolIfNew(tokenA, tokenB) {
+        const poolKey = this.getPoolKey(tokenA, tokenB);
+        const exists = await this.redis.sismember('known_pools', poolKey);
+        if (!exists) {
+            await this.redis.sadd('known_pools', poolKey);
+            console.log(`🆕 새 풀 발견: ${poolKey}`);
+        }
+    }
+    async getStats() {
+        const poolKeys = await this.redis.smembers('known_pools');
+        const totalPools = poolKeys.length;
+        const oneDayAgo = Math.floor(Date.now() / 1000) - 86400;
+        let recentSwaps = 0;
+        let recentLiquidity = 0;
+        for (const poolKey of poolKeys.slice(0, 10)) {
+            const swapEvents = await this.redis.lrange(`${this.CACHE_KEYS.POOL_EVENTS}${poolKey}:swap`, 0, -1);
+            const liquidityEvents = await this.redis.lrange(`${this.CACHE_KEYS.POOL_EVENTS}${poolKey}:liquidity`, 0, -1);
+            recentSwaps += swapEvents.filter((e) => JSON.parse(e).timestamp > oneDayAgo).length;
+            recentLiquidity += liquidityEvents.filter((e) => JSON.parse(e).timestamp > oneDayAgo).length;
+        }
+        return {
+            totalPools,
+            recentSwaps24h: recentSwaps,
+            recentLiquidity24h: recentLiquidity,
+            lastUpdate: new Date().toISOString(),
+        };
+    }
+    async getPoolEvents(poolKey, type = null, limit = 50, offset = 0) {
+        const events = [];
+        const eventTypes = type ? [type] : ['liquidity', 'swap'];
+        for (const eventType of eventTypes) {
+            const eventKey = `${this.CACHE_KEYS.POOL_EVENTS}${poolKey}:${eventType}`;
+            const eventList = await this.redis.lrange(eventKey, offset, offset + limit - 1);
+            events.push(...eventList.map((e) => JSON.parse(e)));
+        }
+        return events.sort((a, b) => b.timestamp - a.timestamp);
     }
 };
 exports.PoolService = PoolService;

@@ -3,6 +3,8 @@
 import { useAccount, useConnect, useDisconnect } from 'wagmi'
 import { metaMask } from 'wagmi/connectors'
 import { useClientOnly } from '@/hooks/useClientOnly'
+import { FaWallet, FaExchangeAlt, FaCircle } from 'react-icons/fa'
+import { MdAccountBalanceWallet } from 'react-icons/md'
 
 export function Header() {
   const hasMounted = useClientOnly()
@@ -19,8 +21,9 @@ export function Header() {
       <div className="container mx-auto px-4 py-4">
         <div className="flex justify-between items-center">
           <div className="flex items-center space-x-4">
-            <h1 className="text-xl md:text-2xl font-bold text-gray-800">
-              MetaMask 지갑 연동
+            <h1 className="text-xl md:text-2xl font-bold text-gray-800 flex items-center">
+              <FaExchangeAlt className="mr-3 text-blue-600" />
+              SimpleDex
             </h1>
             <span className="hidden sm:inline-block px-2 py-1 text-xs bg-blue-100 text-blue-600 rounded-full font-medium">
               데모
@@ -52,21 +55,23 @@ export function Header() {
               ) : isConnected ? (
                 <div className="flex items-center space-x-2">
                   <div className="flex items-center space-x-2">
-                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                    <FaCircle className="text-green-500 text-xs animate-pulse" />
                     <span className="hidden sm:inline text-sm text-green-600 font-medium">연결됨</span>
                   </div>
                   <button
                     onClick={() => disconnect()}
-                    className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors text-sm font-medium"
+                    className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors text-sm font-medium flex items-center"
                   >
+                    <MdAccountBalanceWallet className="mr-2" />
                     연결 해제
                   </button>
                 </div>
               ) : (
                 <button
                   onClick={handleConnect}
-                  className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors text-sm font-medium"
+                  className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors text-sm font-medium flex items-center"
                 >
+                  <FaWallet className="mr-2" />
                   지갑 연결
                 </button>
               )}

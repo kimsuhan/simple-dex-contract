@@ -12,75 +12,69 @@ export function WalletInfo() {
     address,
     query: {
       enabled: hasMounted && !!address,
+      refetchInterval: 5000,
     },
   })
 
   if (!hasMounted) {
     return (
-      <div className="max-w-md mx-auto p-6 bg-white rounded-lg shadow-lg border">
-        <h3 className="text-lg font-semibold mb-4 text-gray-800">지갑 정보</h3>
-        <div className="animate-pulse space-y-3">
-          <div className="h-16 bg-gray-200 rounded"></div>
-          <div className="h-16 bg-gray-200 rounded"></div>
-          <div className="h-16 bg-gray-200 rounded"></div>
+      <div className="bg-white rounded-lg border p-4">
+        <div className="animate-pulse">
+          <div className="h-4 bg-gray-200 rounded w-16 mb-2"></div>
+          <div className="h-8 bg-gray-200 rounded"></div>
         </div>
       </div>
     )
   }
 
   if (!isConnected || !address) {
-    return null
+    return (
+      <div className="bg-gray-50 rounded-lg border p-4 text-center">
+        <p className="text-sm text-gray-500">지갑을 연결해주세요</p>
+      </div>
+    )
   }
 
   const getChainName = (chainId: number) => {
     switch (chainId) {
       case 1:
-        return 'Ethereum Mainnet'
+        return 'Mainnet'
       case 11155111:
-        return 'Sepolia Testnet'
+        return 'Sepolia'
       case 31337:
-        return 'Hardhat Local'
+        return 'Local'
       default:
-        return `Unknown (${chainId})`
+        return `Chain ${chainId}`
     }
   }
 
   return (
-    <div className="max-w-md mx-auto p-6 bg-white rounded-lg shadow-lg border">
-      <h3 className="text-lg font-semibold mb-4 text-gray-800">지갑 정보</h3>
+    <div className="bg-white rounded-lg border p-4">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm font-semibold text-gray-700 flex items-center">
+          <span className="mr-2">👛</span>지갑 정보
+        </h3>
+        <span className="px-2 py-1 text-xs bg-green-100 text-green-600 rounded-full">
+          {getChainName(chainId)}
+        </span>
+      </div>
       
-      <div className="space-y-3">
-        <div>
-          <label className="block text-sm font-medium text-gray-600 mb-1">
-            지갑 주소
-          </label>
-          <div className="p-2 bg-gray-100 rounded font-mono text-sm break-all">
-            {address}
-          </div>
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-gray-500">주소</span>
+          <span className="text-xs font-mono text-gray-700">
+            {`${address.slice(0, 6)}...${address.slice(-4)}`}
+          </span>
         </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-600 mb-1">
-            네트워크
-          </label>
-          <div className="p-2 bg-gray-100 rounded text-sm">
-            {getChainName(chainId)}
-          </div>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-600 mb-1">
-            잔액
-          </label>
-          <div className="p-2 bg-gray-100 rounded text-sm">
-            {balance ? (
-              <span>
-                {parseFloat(formatEther(balance.value)).toFixed(4)} {balance.symbol}
-              </span>
-            ) : (
-              '로딩 중...'
-            )}
-          </div>
+        
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-gray-500">ETH 잔액</span>
+          <span className="text-sm font-semibold text-gray-900">
+            {balance ? 
+              `${parseFloat(formatEther(balance.value)).toFixed(4)} ETH` : 
+              '로딩...'
+            }
+          </span>
         </div>
       </div>
     </div>

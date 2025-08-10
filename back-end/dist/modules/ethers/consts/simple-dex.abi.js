@@ -2,6 +2,33 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.default = [
     {
+        inputs: [],
+        stateMutability: 'nonpayable',
+        type: 'constructor',
+    },
+    {
+        inputs: [
+            {
+                internalType: 'address',
+                name: 'owner',
+                type: 'address',
+            },
+        ],
+        name: 'OwnableInvalidOwner',
+        type: 'error',
+    },
+    {
+        inputs: [
+            {
+                internalType: 'address',
+                name: 'account',
+                type: 'address',
+            },
+        ],
+        name: 'OwnableUnauthorizedAccount',
+        type: 'error',
+    },
+    {
         anonymous: false,
         inputs: [
             {
@@ -42,6 +69,25 @@ exports.default = [
             },
         ],
         name: 'LiquidityAdded',
+        type: 'event',
+    },
+    {
+        anonymous: false,
+        inputs: [
+            {
+                indexed: true,
+                internalType: 'address',
+                name: 'previousOwner',
+                type: 'address',
+            },
+            {
+                indexed: true,
+                internalType: 'address',
+                name: 'newOwner',
+                type: 'address',
+            },
+        ],
+        name: 'OwnershipTransferred',
         type: 'event',
     },
     {
@@ -119,6 +165,43 @@ exports.default = [
         inputs: [
             {
                 internalType: 'address',
+                name: 'tokenA',
+                type: 'address',
+            },
+            {
+                internalType: 'address',
+                name: 'tokenB',
+                type: 'address',
+            },
+        ],
+        name: 'getMyLiquidity',
+        outputs: [
+            {
+                internalType: 'uint256',
+                name: 'liquidity',
+                type: 'uint256',
+            },
+        ],
+        stateMutability: 'view',
+        type: 'function',
+    },
+    {
+        inputs: [],
+        name: 'owner',
+        outputs: [
+            {
+                internalType: 'address',
+                name: '',
+                type: 'address',
+            },
+        ],
+        stateMutability: 'view',
+        type: 'function',
+    },
+    {
+        inputs: [
+            {
+                internalType: 'address',
                 name: '',
                 type: 'address',
             },
@@ -150,6 +233,31 @@ exports.default = [
         type: 'function',
     },
     {
+        inputs: [],
+        name: 'renounceOwnership',
+        outputs: [],
+        stateMutability: 'nonpayable',
+        type: 'function',
+    },
+    {
+        inputs: [
+            {
+                internalType: 'address',
+                name: 'tokenA',
+                type: 'address',
+            },
+            {
+                internalType: 'address',
+                name: 'tokenB',
+                type: 'address',
+            },
+        ],
+        name: 'resetPool',
+        outputs: [],
+        stateMutability: 'nonpayable',
+        type: 'function',
+    },
+    {
         inputs: [
             {
                 internalType: 'address',
@@ -175,6 +283,19 @@ exports.default = [
                 type: 'uint256',
             },
         ],
+        stateMutability: 'nonpayable',
+        type: 'function',
+    },
+    {
+        inputs: [
+            {
+                internalType: 'address',
+                name: 'newOwner',
+                type: 'address',
+            },
+        ],
+        name: 'transferOwnership',
+        outputs: [],
         stateMutability: 'nonpayable',
         type: 'function',
     },

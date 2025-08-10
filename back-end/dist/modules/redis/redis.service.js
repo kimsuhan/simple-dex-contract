@@ -22,6 +22,33 @@ let RedisService = class RedisService {
     async set(key, value) {
         return this.redis.set(key, value);
     }
+    async lpush(key, value) {
+        return this.redis.lpush(key, value);
+    }
+    async expire(key, seconds) {
+        return this.redis.expire(key, seconds);
+    }
+    async ltrim(key, start, stop) {
+        return this.redis.ltrim(key, start, stop);
+    }
+    async smembers(key) {
+        return this.redis.smembers(key);
+    }
+    async setex(key, seconds, value) {
+        return this.redis.setex(key, seconds, value);
+    }
+    async sadd(key, value) {
+        return this.redis.sadd(key, value);
+    }
+    async sismember(key, value) {
+        return this.redis.sismember(key, value);
+    }
+    async lrange(key, start, stop) {
+        return this.redis.lrange(key, start, stop);
+    }
+    async lrem(key, count, value) {
+        return this.redis.lrem(key, count, value);
+    }
 };
 exports.RedisService = RedisService;
 exports.RedisService = RedisService = __decorate([

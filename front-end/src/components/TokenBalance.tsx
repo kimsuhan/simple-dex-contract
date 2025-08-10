@@ -24,90 +24,81 @@ export function TokenBalance({ token }: TokenBalanceProps) {
     },
   })
 
+  const formattedBalance = balance 
+    ? parseFloat(formatUnits(balance as bigint, token.decimals)).toFixed(4)
+    : '0.0000'
+
   if (!address) {
     return (
-      <div className="p-4 bg-gray-100 rounded-lg">
-        <div className="flex justify-between items-center">
-          <div>
-            <p className="font-semibold">{token.symbol}</p>
-            <p className="text-sm text-gray-600">{token.name}</p>
+      <div className="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg">
+        <div className="flex items-center space-x-2">
+          <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
+            <span className="text-xs font-bold text-gray-600">{token.symbol.charAt(0)}</span>
           </div>
-          <div className="text-right">
-            <p className="font-mono text-gray-500">지갑을 연결하세요</p>
-          </div>
+          <span className="font-medium text-sm text-gray-700">{token.symbol}</span>
         </div>
+        <span className="text-xs text-gray-500">지갑 연결 필요</span>
       </div>
     )
   }
 
   if (token.address === '0x0000000000000000000000000000000000000000') {
     return (
-      <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-        <div className="flex justify-between items-center">
-          <div>
-            <p className="font-semibold">{token.symbol}</p>
-            <p className="text-sm text-gray-600">{token.name}</p>
+      <div className="flex items-center justify-between py-2 px-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+        <div className="flex items-center space-x-2">
+          <div className="w-8 h-8 bg-yellow-300 rounded-full flex items-center justify-center">
+            <span className="text-xs font-bold text-yellow-700">{token.symbol.charAt(0)}</span>
           </div>
-          <div className="text-right">
-            <p className="font-mono text-yellow-600">토큰 주소를 설정하세요</p>
-          </div>
+          <span className="font-medium text-sm text-yellow-800">{token.symbol}</span>
         </div>
+        <span className="text-xs text-yellow-600">주소 설정 필요</span>
       </div>
     )
   }
 
   if (isLoading) {
     return (
-      <div className="p-4 bg-gray-100 rounded-lg animate-pulse">
-        <div className="flex justify-between items-center">
-          <div>
-            <p className="font-semibold">{token.symbol}</p>
-            <p className="text-sm text-gray-600">{token.name}</p>
-          </div>
-          <div className="text-right">
-            <div className="h-4 bg-gray-300 rounded w-20"></div>
-          </div>
+      <div className="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg animate-pulse">
+        <div className="flex items-center space-x-2">
+          <div className="w-8 h-8 bg-gray-300 rounded-full"></div>
+          <div className="h-4 bg-gray-300 rounded w-12"></div>
         </div>
+        <div className="h-4 bg-gray-300 rounded w-16"></div>
       </div>
     )
   }
 
   if (isError) {
     return (
-      <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-        <div className="flex justify-between items-center">
-          <div>
-            <p className="font-semibold">{token.symbol}</p>
-            <p className="text-sm text-gray-600">{token.name}</p>
+      <div className="flex items-center justify-between py-2 px-3 bg-red-50 border border-red-200 rounded-lg">
+        <div className="flex items-center space-x-2">
+          <div className="w-8 h-8 bg-red-300 rounded-full flex items-center justify-center">
+            <span className="text-xs font-bold text-red-700">{token.symbol.charAt(0)}</span>
           </div>
-          <div className="text-right">
-            <p className="font-mono text-red-600">오류 발생</p>
-          </div>
+          <span className="font-medium text-sm text-red-800">{token.symbol}</span>
         </div>
+        <span className="text-xs text-red-600">오류</span>
       </div>
     )
   }
 
-  const formattedBalance = balance 
-    ? parseFloat(formatUnits(balance as bigint, token.decimals)).toFixed(4)
-    : '0.0000'
-
   return (
-    <div className="p-4 bg-white border border-gray-200 rounded-lg shadow-sm">
-      <div className="flex justify-between items-center">
+    <div className="flex items-center justify-between py-2 px-3 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+      <div className="flex items-center space-x-2">
+        <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+          <span className="text-xs font-bold text-blue-600">{token.symbol.charAt(0)}</span>
+        </div>
         <div>
-          <p className="font-semibold text-gray-800">{token.symbol}</p>
-          <p className="text-sm text-gray-600">{token.name}</p>
-          <p className="text-xs text-gray-400 font-mono">
+          <p className="font-medium text-sm text-gray-800">{token.symbol}</p>
+          <p className="text-xs text-gray-500 font-mono">
             {`${token.address.slice(0, 6)}...${token.address.slice(-4)}`}
           </p>
         </div>
-        <div className="text-right">
-          <p className="font-mono text-lg font-semibold text-gray-800">
-            {formattedBalance}
-          </p>
-          <p className="text-sm text-gray-600">{token.symbol}</p>
-        </div>
+      </div>
+      <div className="text-right">
+        <p className="font-mono text-sm font-semibold text-gray-900">
+          {formattedBalance}
+        </p>
       </div>
     </div>
   )
