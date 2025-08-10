@@ -3,9 +3,12 @@ pragma solidity ^0.8.28;
 
 import '@openzeppelin/contracts/token/ERC20/IERC20.sol';
 import '@openzeppelin/contracts/utils/math/Math.sol';
+import '@openzeppelin/contracts/access/Ownable.sol';
 import 'hardhat/console.sol';
 
-contract SimpleDex {
+contract SimpleDex is Ownable {
+  constructor() Ownable(msg.sender) {}
+
   /// @dev 수학 라이브러리 사용
   using Math for uint256;
 
@@ -131,6 +134,32 @@ contract SimpleDex {
     }
 
     emit Swap(msg.sender, tokenIn, tokenOut, amountIn, amountOut);
+  }
+
+  function ethSwap(address tokenOut, uint256 amountOutMin) external payable {
+    require(tokenOut != address(0), 'Invalid token');
+    require(amountOutMin > 0, 'Amount must be > 0');
+
+    uint256 amountIn = msg.value;
+
+    // 토큰 전송
+    IERC20(tokenOut).transfer(msg.sender, amountOutMin);
+
+    emit Swap(msg.sender, address(0), tokenOut, amountIn, amountOutMin);
+  }
+
+  /// @dev 풀 초기화
+  function resetPool(address tokenA, address tokenB) external onlyOwner {
+    require(tokenA != tokenB, 'TokenA and TokenB cannot be the same');
+    require(pools[tokenA][tokenB].totalLiquidity > 0, 'Pool not exists');
+    pools[tokenA][tokenB].tokenAReserve = 0;
+    pools[tokenA][tokenB].tokenBReserve = 0;
+    pools[tokenA][tokenB].totalLiquidity = 0;
+  }
+
+  /// @dev 내 유동성 조회
+  function getMyLiquidity(address tokenA, address tokenB) external view returns (uint256 liquidity) {
+    liquidity = pools[tokenA][tokenB].liquidityOf[msg.sender];
   }
 
   /**

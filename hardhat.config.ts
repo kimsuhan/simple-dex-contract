@@ -5,8 +5,19 @@ require('dotenv').config();
 const config: HardhatUserConfig = {
   solidity: '0.8.28',
   networks: {
-    hardhat: {},
+    hardhat: {
+      gas: 'auto',
+      mining: {
+        auto: false,
+        interval: 5000,
+      },
+    },
     localhost: {
+      gas: 'auto',
+      mining: {
+        auto: false,
+        interval: 5000,
+      },
       url: 'http://127.0.0.1:8545',
       chainId: 31337,
     },
@@ -19,6 +30,7 @@ const config: HardhatUserConfig = {
         : {}),
     },
   },
+
   gasReporter: {
     enabled: (process.env.REPORT_GAS || 'N') === 'Y',
     currency: process.env.REPORT_GAS_CURRENCY || 'USD',
