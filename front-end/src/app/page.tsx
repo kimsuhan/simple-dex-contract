@@ -9,8 +9,31 @@ import { PoolList } from '@/components/PoolList';
 import { PoolListHorizontal } from '@/components/PoolListHorizontal';
 import { PoolStats } from '@/components/PoolStats';
 import { TokenSwapModal } from '@/components/TokenSwapModal';
-import { TokenTable } from '@/components/TokenTable';
 import { useState } from 'react';
+import dynamic from 'next/dynamic';
+
+// TokenTable을 동적 import로 SSR 방지
+const TokenTable = dynamic(() => import('@/components/TokenTable').then(mod => ({ default: mod.TokenTable })), {
+  ssr: false,
+  loading: () => (
+    <div className="bg-white rounded-lg border shadow-sm p-4">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-lg font-semibold text-gray-800 flex items-center">
+          <svg className="mr-2 w-5 h-5 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4z"/>
+            <path fillRule="evenodd" d="M18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h1a1 1 0 100-2H9z" clipRule="evenodd"/>
+          </svg>
+          토큰 잔액
+        </h3>
+      </div>
+      <div className="text-center py-8">
+        <div className="animate-pulse">
+          <div className="h-4 bg-gray-200 rounded w-32 mx-auto"></div>
+        </div>
+      </div>
+    </div>
+  )
+});
 
 interface PoolData {
   tokenA: string;

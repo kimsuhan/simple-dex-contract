@@ -256,7 +256,7 @@ export function PoolList() {
                       <div className="text-sm font-semibold text-gray-800">
                         {formatReserve(pool.totalLiquidity)}
                       </div>
-                      <div className="text-xs text-gray-500">총 유동성</div>
+                      <div className="text-xs text-gray-500">TVL</div>
                     </div>
                   </div>
 

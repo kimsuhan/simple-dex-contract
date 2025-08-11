@@ -25,7 +25,7 @@ export class PoolSchedule {
   //       console.log('🔍 이벤트 동기화 확인...');
   //     });
 
-  @Cron(CronExpression.EVERY_MINUTE)
+  @Cron(CronExpression.EVERY_5_MINUTES)
   async updatePoolCache() {
     console.log('🔄 정기 캐시 업데이트...');
     await this.poolService.updatePoolCache();

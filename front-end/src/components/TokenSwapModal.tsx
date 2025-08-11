@@ -36,17 +36,6 @@ export function TokenSwapModal({ isOpen, onClose, selectedPool }: TokenSwapModal
   const { writeContract, data: hash, isPending } = useWriteContract()
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ 
     hash,
-    onSuccess: () => {
-      console.log('Swap completed, refreshing all data...')
-      refetchFromTokenBalance()
-      refetchToTokenBalance()
-      refetchPoolData()
-      setAmountIn('')
-      setAmountOut('')
-      setTimeout(() => {
-        onClose()
-      }, 2000) // 2초 후 모달 닫기
-    }
   })
 
   // 현재 풀의 토큰 정보
@@ -97,14 +86,9 @@ export function TokenSwapModal({ isOpen, onClose, selectedPool }: TokenSwapModal
     address: SIMPLE_DEX_ADDRESS,
     abi: SIMPLE_DEX_ABI,
     functionName: 'pools',
-    args: selectedPool ? [selectedPool.tokenA, selectedPool.tokenB] : [tokenA.address, tokenB.address],
+    args: selectedPool ? [selectedPool.tokenA as `0x${string}`, selectedPool.tokenB as `0x${string}`] : [tokenA.address, tokenB.address],
     query: {
-      enabled:
-        hasMounted &&
-        selectedPool &&
-        SIMPLE_DEX_ADDRESS !== '0x0000000000000000000000000000000000000000' &&
-        tokenA.address !== '0x0000000000000000000000000000000000000000' &&
-        tokenB.address !== '0x0000000000000000000000000000000000000000',
+      enabled: hasMounted && !!selectedPool,
     },
   })
 
@@ -187,12 +171,7 @@ export function TokenSwapModal({ isOpen, onClose, selectedPool }: TokenSwapModal
     <Modal 
       isOpen={isOpen} 
       onClose={onClose}
-      title={
-        <div className="flex items-center">
-          <RiTokenSwapLine className="mr-2 text-blue-600" />
-          <span>{tokenA.symbol} / {tokenB.symbol} 스왑</span>
-        </div>
-      }
+      title={`${tokenA.symbol} / ${tokenB.symbol} 스왑`}
       size="md"
     >
       {!poolExists ? (

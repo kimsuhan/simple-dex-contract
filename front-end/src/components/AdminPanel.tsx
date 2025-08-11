@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi'
 import { SIMPLE_DEX_ABI, SIMPLE_DEX_ADDRESS } from '@/lib/dex'
 import { TOKENS } from '@/lib/tokens'
@@ -16,14 +16,18 @@ export function AdminPanel() {
   const { writeContract, data: hash, isPending } = useWriteContract()
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ 
     hash,
-    onSuccess: () => {
+  })
+
+  // isSuccess가 변경될 때 처리
+  useEffect(() => {
+    if (isSuccess) {
       console.log('Pool reset completed successfully')
       // 페이지 전체를 새로고침하여 모든 컴포넌트의 데이터 업데이트
       setTimeout(() => {
         window.location.reload()
       }, 1500) // 성공 메시지를 1.5초 보여준 후 새로고침
     }
-  })
+  }, [isSuccess])
 
   // 컨트랙트 소유자 조회
   const { data: owner } = useReadContract({
@@ -31,7 +35,7 @@ export function AdminPanel() {
     abi: SIMPLE_DEX_ABI,
     functionName: 'owner',
     query: {
-      enabled: hasMounted && SIMPLE_DEX_ADDRESS !== '0x0000000000000000000000000000000000000000',
+      enabled: hasMounted,
     },
   })
 
@@ -65,9 +69,10 @@ export function AdminPanel() {
     return null
   }
 
-  if (SIMPLE_DEX_ADDRESS === '0x0000000000000000000000000000000000000000') {
-    return null
-  }
+  // SIMPLE_DEX_ADDRESS는 상수이므로 이 체크는 불필요
+  // if (SIMPLE_DEX_ADDRESS === '0x0000000000000000000000000000000000000000') {
+  //   return null
+  // }
 
   // 현재 사용자가 컨트랙트 소유자인지 확인
   const isOwner = owner && address && owner.toLowerCase() === address.toLowerCase()

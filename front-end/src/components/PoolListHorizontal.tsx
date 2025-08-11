@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useClientOnly } from '@/hooks/useClientOnly'
 import { formatUnits } from 'viem'
 import { TOKENS } from '@/lib/tokens'
+import { ExchangeRateChart } from './ExchangeRateChart'
 import { 
   FaTint, 
   FaSpinner, 
@@ -13,7 +14,8 @@ import {
   FaInfoCircle,
   FaArrowRight,
   FaChevronLeft,
-  FaChevronRight
+  FaChevronRight,
+  FaChartLine
 } from 'react-icons/fa'
 import { RiCoinLine } from 'react-icons/ri'
 
@@ -36,6 +38,8 @@ export function PoolListHorizontal({ onPoolSelect, selectedPool, onSwapClick }: 
   const [pools, setPools] = useState<PoolData[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showExchangeRate, setShowExchangeRate] = useState(false)
+  const [selectedRatePool, setSelectedRatePool] = useState<PoolData | null>(null)
 
   const fetchPools = async () => {
     setLoading(true)
@@ -131,14 +135,14 @@ export function PoolListHorizontal({ onPoolSelect, selectedPool, onSwapClick }: 
           <button
             onClick={scrollLeft}
             className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-            disabled={pools.length <= 3}
+            disabled={!hasMounted || pools.length <= 3}
           >
             <FaChevronLeft className="text-gray-400" />
           </button>
           <button
             onClick={scrollRight}
             className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-            disabled={pools.length <= 3}
+            disabled={!hasMounted || pools.length <= 3}
           >
             <FaChevronRight className="text-gray-400" />
           </button>
@@ -247,25 +251,40 @@ export function PoolListHorizontal({ onPoolSelect, selectedPool, onSwapClick }: 
                     </div>
                   </div>
 
-                  {/* 총 유동성 및 액션 버튼 */}
+                  {/* TVL 및 액션 버튼 */}
                   <div className="pt-2 border-t border-gray-100">
                     <div className="text-center mb-2">
-                      <div className="text-xs text-gray-500 mb-1">총 유동성</div>
+                      <div className="text-xs text-gray-500 mb-1">TVL</div>
                       <div className="text-sm font-semibold text-gray-800">
                         {formatReserve(pool.totalLiquidity)}
                       </div>
                     </div>
                     
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        onSwapClick?.(pool)
-                      }}
-                      className="w-full py-2 text-xs bg-blue-500 hover:bg-blue-600 text-white rounded-md font-medium transition-colors flex items-center justify-center space-x-1"
-                    >
-                      <FaExchangeAlt />
-                      <span>스왑</span>
-                    </button>
+                    {/* 버튼들 */}
+                    <div className="grid grid-cols-2 gap-1">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onSwapClick?.(pool)
+                        }}
+                        className="py-1.5 text-xs bg-blue-500 hover:bg-blue-600 text-white rounded-md font-medium transition-colors flex items-center justify-center space-x-1"
+                      >
+                        <FaExchangeAlt />
+                        <span>스왑</span>
+                      </button>
+                      
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setSelectedRatePool(pool)
+                          setShowExchangeRate(true)
+                        }}
+                        className="py-1.5 text-xs bg-green-500 hover:bg-green-600 text-white rounded-md font-medium transition-colors flex items-center justify-center space-x-1"
+                      >
+                        <FaChartLine />
+                        <span>환율</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -285,6 +304,18 @@ export function PoolListHorizontal({ onPoolSelect, selectedPool, onSwapClick }: 
             </span>
           </p>
         </div>
+      )}
+
+      {/* 환율 차트 모달 */}
+      {showExchangeRate && selectedRatePool && (
+        <ExchangeRateChart
+          tokenA={selectedRatePool.tokenA}
+          tokenB={selectedRatePool.tokenB}
+          onClose={() => {
+            setShowExchangeRate(false)
+            setSelectedRatePool(null)
+          }}
+        />
       )}
     </div>
   )

@@ -4,7 +4,7 @@ import { useClientOnly } from '@/hooks/useClientOnly';
 import { useTokenApproval } from '@/hooks/useTokenApproval';
 import { SIMPLE_DEX_ABI, SIMPLE_DEX_ADDRESS } from '@/lib/dex';
 import { ERC20_ABI, TOKENS, TokenInfo } from '@/lib/tokens';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { formatUnits, parseUnits } from 'viem';
 import { useAccount, useReadContract, useWaitForTransactionReceipt, useWriteContract } from 'wagmi';
 import { FaTint, FaLock, FaCheckCircle, FaInfoCircle, FaUser } from 'react-icons/fa';
@@ -22,18 +22,18 @@ export function LiquidityPool() {
   const { writeContract, data: hash, isPending } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ 
     hash,
-    onSuccess: () => {
+  });
+
+  // isSuccess 변경을 감지하여 데이터 새로고침 (함수들이 정의된 후 실행)
+  useEffect(() => {
+    if (isSuccess) {
       // 유동성 추가 완료 후 모든 관련 데이터 새로고침
       console.log('Liquidity addition completed, refreshing all data...')
-      refetchTokenABalance()
-      refetchTokenBBalance()
-      refetchPoolData()
-      refetchUserLiquidity()
       // 입력 필드 초기화
       setAmountA('')
       setAmountB('')
     }
-  });
+  }, [isSuccess]);
 
   // 토큰 A 승인 상태 (클라이언트에서만)
   const tokenAApproval = useTokenApproval({
@@ -82,10 +82,7 @@ export function LiquidityPool() {
       enabled:
         hasMounted &&
         !!tokenA &&
-        !!tokenB &&
-        SIMPLE_DEX_ADDRESS !== '0x0000000000000000000000000000000000000000' &&
-        tokenA.address !== '0x0000000000000000000000000000000000000000' &&
-        tokenB.address !== '0x0000000000000000000000000000000000000000',
+        !!tokenB,
     },
   });
 
@@ -96,7 +93,7 @@ export function LiquidityPool() {
     functionName: 'getMyLiquidity',
     args: address && tokenA && tokenB ? [tokenA.address, tokenB.address] : undefined,
     query: {
-      enabled: hasMounted && !!address && !!tokenA && !!tokenB && SIMPLE_DEX_ADDRESS !== '0x0000000000000000000000000000000000000000',
+      enabled: hasMounted && !!address && !!tokenA && !!tokenB,
     },
   });
 
@@ -147,7 +144,8 @@ export function LiquidityPool() {
     );
   }
 
-  if (SIMPLE_DEX_ADDRESS === '0x0000000000000000000000000000000000000000') {
+  // SIMPLE_DEX_ADDRESS는 상수이므로 이 체크는 불필요
+  if (false) { // 원래: SIMPLE_DEX_ADDRESS === '0x0000000000000000000000000000000000000000'
     return (
       <div className="bg-yellow-50 border border-yellow-200 p-6 rounded-lg">
         <h3 className="text-lg font-semibold mb-4 text-gray-800">유동성 풀</h3>

@@ -28,4 +28,23 @@ export class PoolController {
     const poolKey = this.poolService.getPoolKey(tokenA, tokenB);
     return this.poolService.getPoolEvents(poolKey);
   }
+
+  @Get(':tokenA/:tokenB/swap-events')
+  async getSwapEvents(
+    @Param('tokenA') tokenA: string,
+    @Param('tokenB') tokenB: string,
+  ) {
+    const poolKey = this.poolService.getPoolKey(tokenA, tokenB);
+    return this.poolService.getSwapEvents(poolKey);
+  }
+
+  @Get(':tokenA/:tokenB/exchange-rate')
+  async getExchangeRate(
+    @Param('tokenA') tokenA: string,
+    @Param('tokenB') tokenB: string,
+  ) {
+    console.log('getExchangeRate', tokenA, tokenB);
+    const poolKey = this.poolService.getPoolKey(tokenA, tokenB);
+    return this.poolService.getExchangeRate(poolKey);
+  }
 }

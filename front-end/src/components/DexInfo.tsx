@@ -16,10 +16,7 @@ export function DexInfo() {
     functionName: 'pools',
     args: [TOKENS[0].address, TOKENS[1].address],
     query: {
-      enabled: hasMounted &&
-               SIMPLE_DEX_ADDRESS !== '0x0000000000000000000000000000000000000000' &&
-               TOKENS[0].address !== '0x0000000000000000000000000000000000000000' &&
-               TOKENS[1].address !== '0x0000000000000000000000000000000000000000',
+      enabled: hasMounted,
       refetchInterval: 3000, // 3초마다 풀 정보 새로고침
     },
   })
@@ -41,29 +38,30 @@ export function DexInfo() {
     )
   }
 
-  if (SIMPLE_DEX_ADDRESS === '0x0000000000000000000000000000000000000000') {
-    return (
-      <div className="bg-yellow-50 border border-yellow-200 p-6 rounded-lg">
-        <h3 className="text-lg font-semibold mb-4 text-gray-800">DEX 정보</h3>
-        <div className="text-center py-4">
-          <p className="text-yellow-700 mb-3">SimpleDex 컨트랙트 주소를 설정해주세요.</p>
-          <div className="bg-yellow-100 p-3 rounded-lg text-left">
-            <p className="text-sm text-yellow-800 font-semibold mb-2">설정 방법:</p>
-            <ol className="text-xs text-yellow-700 space-y-1">
-              <li>1. 백엔드에서 SimpleDex 컨트랙트를 배포하세요</li>
-              <li>2. 배포된 주소를 복사하세요</li>
-              <li>3. <code className="bg-yellow-200 px-1 rounded">src/lib/dex.ts</code>에서 주소를 업데이트하세요</li>
-            </ol>
-          </div>
-        </div>
-      </div>
-    )
-  }
+  // SIMPLE_DEX_ADDRESS는 상수이므로 이 체크는 불필요
+  // if (SIMPLE_DEX_ADDRESS === '0x0000000000000000000000000000000000000000') {
+  //   return (
+  //     <div className="bg-yellow-50 border border-yellow-200 p-6 rounded-lg">
+  //       <h3 className="text-lg font-semibold mb-4 text-gray-800">DEX 정보</h3>
+  //       <div className="text-center py-4">
+  //         <p className="text-yellow-700 mb-3">SimpleDex 컨트랙트 주소를 설정해주세요.</p>
+  //         <div className="bg-yellow-100 p-3 rounded-lg text-left">
+  //           <p className="text-sm text-yellow-800 font-semibold mb-2">설정 방법:</p>
+  //           <ol className="text-xs text-yellow-700 space-y-1">
+  //             <li>1. 백엔드에서 SimpleDex 컨트랙트를 배포하세요</li>
+  //             <li>2. 배포된 주소를 복사하세요</li>
+  //             <li>3. <code className="bg-yellow-200 px-1 rounded">src/lib/dex.ts</code>에서 주소를 업데이트하세요</li>
+  //           </ol>
+  //         </div>
+  //       </div>
+  //     </div>
+  //   )
+  // }
 
   // poolData에서 값 추출
-  const tokenAReserve = poolData ? (poolData as any)[0] : 0n
-  const tokenBReserve = poolData ? (poolData as any)[1] : 0n  
-  const totalLiquidity = poolData ? (poolData as any)[2] : 0n
+  const tokenAReserve = poolData ? (poolData as readonly [bigint, bigint, bigint])[0] : 0n
+  const tokenBReserve = poolData ? (poolData as readonly [bigint, bigint, bigint])[1] : 0n  
+  const totalLiquidity = poolData ? (poolData as readonly [bigint, bigint, bigint])[2] : 0n
 
   // 환율 계산
   const exchangeRate = tokenAReserve && tokenBReserve && tokenAReserve > 0n 
@@ -122,7 +120,7 @@ export function DexInfo() {
               </span>
             </div>
             <div className="flex justify-between">
-              <span className="text-green-700">총 유동성:</span>
+              <span className="text-green-700">TVL:</span>
               <span className="font-mono text-green-800">
                 {totalLiquidity ? parseFloat(formatUnits(totalLiquidity as bigint, 18)).toFixed(4) : '0.0000'}
               </span>

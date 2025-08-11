@@ -98,54 +98,46 @@ contract SimpleDex is Ownable {
     require(tokenIn != tokenOut, 'Same token');
     require(amountIn > 0, 'Amount must be > 0');
 
-    // 토큰 순서 정규화
+    // 토큰 순서 정규화 (작은 주소가 먼저)
     bool isReversed = tokenIn > tokenOut;
-    if (isReversed) {
-      (tokenIn, tokenOut) = (tokenOut, tokenIn);
-    }
+    address tokenA = isReversed ? tokenOut : tokenIn; // 작은 주소가 먼저
+    address tokenB = isReversed ? tokenIn : tokenOut; // 큰 주소가 먼저
 
-    Pool storage pool = pools[tokenIn][tokenOut];
-    require(pool.totalLiquidity > 0, 'Pool not exists');
+    // 정규화해서 찾은 토큰 A와 토큰 B를 키로 하는 풀 정보 획득
+    Pool storage pool = pools[tokenA][tokenB];
+    require(pool.totalLiquidity > 0, 'Pool not exists'); // 풀이 존재하지 않으면 오류
 
     // AMM 공식: x * y = k
-    uint256 reserveIn = isReversed ? pool.tokenBReserve : pool.tokenAReserve;
-    uint256 reserveOut = isReversed ? pool.tokenAReserve : pool.tokenBReserve;
+    uint256 reserveIn = isReversed ? pool.tokenBReserve : pool.tokenAReserve; // 작은 주소가 먼저
+    uint256 reserveOut = isReversed ? pool.tokenAReserve : pool.tokenBReserve; // 큰 주소가 먼저
 
     // 수수료 0.3% 적용
     uint256 amountInWithFee = amountIn * 997; // 0.3% 수수료
-    uint256 numerator = amountInWithFee * reserveOut;
-    uint256 denominator = (reserveIn * 1000) + amountInWithFee;
-    amountOut = numerator / denominator;
+    uint256 numerator = amountInWithFee * reserveOut; // 분자
+    uint256 denominator = (reserveIn * 1000) + amountInWithFee; // 분모
+    amountOut = numerator / denominator; // 결과
 
-    require(amountOut > 0, 'Insufficient output amount');
-    require(amountOut < reserveOut, 'Insufficient liquidity');
+    require(amountOut > 0, 'Insufficient output amount'); // 출력 양이 0보다 크지 않으면 오류
+    require(amountOut < reserveOut, 'Insufficient liquidity'); // 출력 양이 풀의 출력 양보다 작으면 오류
 
     // 토큰 전송
-    IERC20(tokenIn).transferFrom(msg.sender, address(this), amountIn);
-    IERC20(tokenOut).transfer(msg.sender, amountOut);
+    IERC20(tokenIn).transferFrom(msg.sender, address(this), amountIn); // 입력 토큰을 풀로 이동
+
+    uint256 balance = IERC20(tokenOut).balanceOf(address(this)); // 출력 토큰의 잔액 획득
+    require(amountOut < balance, 'Insufficient balance'); // 출력 토큰의 잔액이 출력 양보다 작으면 오류
+    IERC20(tokenOut).transfer(msg.sender, amountOut); // 출력 토큰을 사용자에게 이동
 
     // 풀 상태 업데이트
     if (isReversed) {
-      pool.tokenAReserve -= amountOut;
-      pool.tokenBReserve += amountIn;
+      // 작은 주소가 먼저
+      pool.tokenAReserve -= amountOut; // 작은 주소의 잔액 감소
+      pool.tokenBReserve += amountIn; // 큰 주소의 잔액 증가
     } else {
-      pool.tokenAReserve += amountIn;
-      pool.tokenBReserve -= amountOut;
+      pool.tokenAReserve += amountIn; // 작은 주소의 잔액 증가
+      pool.tokenBReserve -= amountOut; // 큰 주소의 잔액 감소
     }
 
-    emit Swap(msg.sender, tokenIn, tokenOut, amountIn, amountOut);
-  }
-
-  function ethSwap(address tokenOut, uint256 amountOutMin) external payable {
-    require(tokenOut != address(0), 'Invalid token');
-    require(amountOutMin > 0, 'Amount must be > 0');
-
-    uint256 amountIn = msg.value;
-
-    // 토큰 전송
-    IERC20(tokenOut).transfer(msg.sender, amountOutMin);
-
-    emit Swap(msg.sender, address(0), tokenOut, amountIn, amountOutMin);
+    emit Swap(msg.sender, tokenIn, tokenOut, amountIn, amountOut); // 스왑 이벤트 발생
   }
 
   /// @dev 풀 초기화

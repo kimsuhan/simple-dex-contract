@@ -4,6 +4,7 @@ import { ERC20_ABI, TOKENS, TokenInfo } from '@/lib/tokens';
 import { useMemo, useState } from 'react';
 import { formatUnits, parseUnits } from 'viem';
 import { useAccount, useReadContracts, useWriteContract } from 'wagmi';
+import { useClientOnly } from '@/hooks/useClientOnly';
 import { 
   FaCoins, 
   FaSpinner, 
@@ -20,6 +21,7 @@ interface TokenTableProps {
 export function TokenTable({ className = '' }: TokenTableProps) {
   const { address, isConnected } = useAccount();
   const { writeContract } = useWriteContract();
+  const hasMounted = useClientOnly();
   const [sendModalOpen, setSendModalOpen] = useState(false);
   const [selectedToken, setSelectedToken] = useState<TokenInfo | null>(null);
   const [recipient, setRecipient] = useState('');
@@ -90,6 +92,39 @@ export function TokenTable({ className = '' }: TokenTableProps) {
       setIsLoading(false);
     }
   };
+
+  // 클라이언트에서만 렌더링
+  if (!hasMounted) {
+    return (
+      <div className={`bg-white rounded-lg border shadow-sm p-4 ${className}`}>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-gray-800 flex items-center">
+            <FaWallet className="mr-2 text-blue-600" />
+            토큰 잔액
+          </h3>
+          <div className="flex items-center space-x-2">
+            <button
+              className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+              disabled={true}
+            >
+              <FaChevronLeft className="text-gray-400" />
+            </button>
+            <button
+              className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+              disabled={true}
+            >
+              <FaChevronRight className="text-gray-400" />
+            </button>
+          </div>
+        </div>
+        <div className="text-center py-8">
+          <div className="animate-pulse">
+            <div className="h-4 bg-gray-200 rounded w-32 mx-auto"></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (!isConnected) {
     return (

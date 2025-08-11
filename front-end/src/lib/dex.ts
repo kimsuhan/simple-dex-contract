@@ -1,5 +1,5 @@
 // SimpleDex 컨트랙트 정보
-export const SIMPLE_DEX_ADDRESS = '0x4c5859f0F772848b2D91F1D83E2Fe57935348029'; // 실제 배포된 주소로 변경
+export const SIMPLE_DEX_ADDRESS = '0xD8a5a9b31c3C0232E196d518E89Fd8bF83AcAd43'; // 실제 배포된 주소로 변경
 
 // SimpleDex ABI - 주요 함수들만 포함
 export const SIMPLE_DEX_ABI = [

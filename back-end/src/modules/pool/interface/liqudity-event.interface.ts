@@ -9,5 +9,5 @@ export interface LiquidityEvent {
   amountA: string;
   amountB: string;
   liquidity: string;
-  type: 'LIQUIDITY_ADDED' | 'LIQUIDITY_REMOVED' | 'SWAP';
+  type: 'LIQUIDITY_ADDED' | 'SWAP';
 }

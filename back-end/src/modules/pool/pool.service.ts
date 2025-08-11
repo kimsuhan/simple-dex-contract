@@ -2,17 +2,20 @@ import { EthersService } from '@/modules/ethers/ethers.service';
 import { LiquidityEvent } from '@/modules/pool/interface/liqudity-event.interface';
 import { SwapEvent } from '@/modules/pool/interface/swap-event.interface';
 import { RedisService } from '@/modules/redis/redis.service';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { EventLog, Log } from 'ethers';
 
 @Injectable()
 export class PoolService {
+  private readonly logger = new Logger(PoolService.name);
+
   public readonly CACHE_KEYS = {
     POOLS: 'pools',
     LAST_BLOCK: 'last_processed_block',
     POOL_EVENTS: 'pool_events:',
     SWAP_EVENTS: 'swap_events:',
     LIQUIDITY_EVENTS: 'liquidity_events:',
+    EXCHANGE_RATE: 'exchange_rate:',
     KNOWN_POOLS: 'known_pools',
   };
 
@@ -37,6 +40,7 @@ export class PoolService {
    * 초기화
    */
   async init() {
+    await this.deleteAll();
     await this.initializeFromBlockchain();
     void this.setupEventListeners();
   }
@@ -45,66 +49,28 @@ export class PoolService {
    * 초기화: 과거 모든 이벤트 수집
    */
   private async initializeFromBlockchain() {
-    console.log('🚀 초기화 시작: 과거 이벤트 수집 중...');
+    this.logger.log('🚀 초기화 시작: 과거 이벤트 수집 중...');
 
     try {
       // 마지막 처리된 블록 확인
       let fromBlock = await this.redis.get(this.CACHE_KEYS.LAST_BLOCK);
+
+      // 컨트랙트 배포 블록부터 시작
       if (!fromBlock) {
-        // 컨트랙트 배포 블록부터 시작
         fromBlock = process.env.CONTRACT_DEPLOY_BLOCK || '0';
       }
 
       const currentBlock = await this.ethers.provider.getBlockNumber();
-      console.log(`📦 블록 범위: ${fromBlock} → ${currentBlock}`);
+      this.logger.log(`📦 블록 범위: ${fromBlock} → ${currentBlock}`);
 
+      // 이벤트 동기화
       await this.syncEventsFromBlockchain(Number(fromBlock), currentBlock);
-      // await this.updatePoolCache();
+      await this.updatePoolCache();
 
-      console.log('✅ 초기화 완료!');
+      this.logger.log('✅ 초기화 완료!');
     } catch (error) {
-      console.error('❌ 초기화 실패:', error);
+      this.logger.fatal('❌ 초기화 실패:', error);
     }
-  }
-
-  /**
-   * 실시간 이벤트 리스너 설정
-   */
-  setupEventListeners() {
-    console.log('🎧 실시간 이벤트 리스너 설정...');
-
-    void this.ethers.dexContract.on(
-      'LiquidityAdded',
-      (provider, tokenA, tokenB, amountA, amountB, liquidity) => {
-        console.log(
-          `LiquidityAdded: ${provider} -> ${tokenA} ${tokenB} ${amountA} ${amountB} ${liquidity}`,
-        );
-      },
-    );
-
-    // 유동성 추가 이벤트
-    void this.ethers.dexContract.on(
-      'LiquidityAdded',
-      // eslint-disable-next-line @typescript-eslint/no-misused-promises
-      async (
-        _provider,
-        tokenA,
-        tokenB,
-        amountA,
-        amountB,
-        liquidity,
-        event: EventLog,
-      ) => {
-        console.log('📈 새 유동성 추가:', tokenA, tokenB);
-        await this.processLiquidityEvent(event);
-        await this.updatePoolCache();
-      },
-    );
-
-    // 연결 에러 처리
-    void this.ethers.provider.on('error', (error) => {
-      console.error('❌ Provider 에러:', error);
-    });
   }
 
   /**
@@ -119,7 +85,7 @@ export class PoolService {
 
     for (let start = fromBlock; start <= toBlock; start += BATCH_SIZE) {
       const end = Math.min(start + BATCH_SIZE - 1, toBlock);
-      console.log(`🔄 처리 중: 블록 ${start} - ${end}`);
+      this.logger.log(` 이벤트 동기화 중: 블록 ${start} - ${end}`);
 
       try {
         await this.processBatchEvents(start, end);
@@ -130,7 +96,7 @@ export class PoolService {
         // Rate limiting을 위한 딜레이
         await new Promise((resolve) => setTimeout(resolve, 100));
       } catch (error) {
-        console.error(`❌ 블록 ${start}-${end} 처리 실패:`, error);
+        this.logger.error(`❌ 블록 ${start}-${end} 처리 실패:`, error);
         break;
       }
     }
@@ -170,8 +136,11 @@ export class PoolService {
     }
   }
 
-  // 유동성 이벤트 처리
-
+  /**
+   * 유동성 풀 추가 이벤트 처리
+   *
+   * @param event
+   */
   async processLiquidityEvent(event: EventLog | Log) {
     const block = await event.getBlock();
 
@@ -184,6 +153,7 @@ export class PoolService {
       liquidity: string;
     };
 
+    this.logger.log(`유동성 풀 추가 이벤트 확인`);
     const eventData: LiquidityEvent = {
       id: `${event.transactionHash}-${event.index}`,
       transactionHash: event.transactionHash,
@@ -198,12 +168,47 @@ export class PoolService {
       type: 'LIQUIDITY_ADDED',
     };
 
-    // 풀별 이벤트 저장
+    // 풀 키 생성
     const poolKey = this.getPoolKey(arg.tokenA, arg.tokenB);
+
+    // 이벤트 저장 (풀별)
     await this.addEventToPool(poolKey, eventData, 'liquidity');
 
-    // // 새 풀 확인 및 추가
+    // 새 풀 확인 및 추가
     await this.addPoolIfNew(arg.tokenA, arg.tokenB);
+
+    // 환율 이벤트 처리
+    await this.processExchangeRateEvent(
+      poolKey,
+      arg.amountA,
+      arg.amountB,
+      block.timestamp,
+    );
+  }
+
+  /**
+   * 이벤트 데이터 저장
+   *
+   * @param poolKey 풀 키
+   * @param eventData 이벤트 데이터
+   * @param eventType 이벤트 타입
+   */
+  async addEventToPool(
+    poolKey: string,
+    eventData: LiquidityEvent | SwapEvent,
+    eventType: 'liquidity' | 'swap',
+  ) {
+    // 키 구조 : pool_events:tokenA-tokenB:liquidity 또는 pool_events:tokenA-tokenB:swap
+    const eventKey = `${this.CACHE_KEYS.POOL_EVENTS}${poolKey}:${eventType}`;
+
+    // lpush는 왼쪽에 추가
+    await this.redis.lpush(eventKey, JSON.stringify(eventData));
+
+    // 이벤트 만료 시간 설정
+    await this.redis.expire(eventKey, this.CACHE_TTL.EVENTS);
+
+    // 최대 1000개 이벤트만 보관
+    await this.redis.ltrim(eventKey, 0, 999);
   }
 
   /**
@@ -218,26 +223,6 @@ export class PoolService {
     return tokenA.toLowerCase() < tokenB.toLowerCase()
       ? `${tokenA.toLowerCase()}-${tokenB.toLowerCase()}`
       : `${tokenB.toLowerCase()}-${tokenA.toLowerCase()}`;
-  }
-
-  /**
-   * 이벤트 데이터 저장
-   *
-   * @param poolKey
-   * @param eventData
-   * @param eventType
-   */
-  async addEventToPool(
-    poolKey: string,
-    eventData: LiquidityEvent | SwapEvent,
-    eventType: string,
-  ) {
-    const eventKey = `${this.CACHE_KEYS.POOL_EVENTS}${poolKey}:${eventType}`;
-    await this.redis.lpush(eventKey, JSON.stringify(eventData));
-    await this.redis.expire(eventKey, this.CACHE_TTL.EVENTS);
-
-    // 최대 1000개 이벤트만 보관
-    await this.redis.ltrim(eventKey, 0, 999);
   }
 
   /**
@@ -271,7 +256,6 @@ export class PoolService {
   async updatePoolCache() {
     try {
       const poolKeys = await this.redis.smembers(this.CACHE_KEYS.KNOWN_POOLS);
-      console.log('poolKeys', poolKeys);
       const pools: {
         tokenA: string;
         tokenB: string;
@@ -286,7 +270,7 @@ export class PoolService {
           const poolData = await this.getPoolData(tokenA, tokenB);
           pools.push(poolData);
         } catch (error) {
-          console.warn(`⚠️  풀 ${poolKey} 데이터 조회 실패:`, String(error));
+          this.logger.warn(`풀 ${poolKey} 데이터 조회 실패:`, String(error));
         }
       }
 
@@ -296,7 +280,7 @@ export class PoolService {
         JSON.stringify(pools),
       );
 
-      console.log(`📊 풀 캐시 업데이트 완료: ${pools.length}개 풀`);
+      this.logger.log(`풀 캐시 업데이트 완료: ${pools.length}개 풀`);
     } catch (error) {
       console.error('❌ 풀 캐시 업데이트 실패:', error);
     }
@@ -340,21 +324,24 @@ export class PoolService {
    */
   async addPoolIfNew(tokenA: string, tokenB: string) {
     const poolKey = this.getPoolKey(tokenA, tokenB);
+
+    // 풀 캐시에 풀 존재 여부 확인
     const exists = await this.redis.sismember(
       this.CACHE_KEYS.KNOWN_POOLS,
       poolKey,
     );
 
+    // 풀 캐시에 풀 존재하지 않으면 추가
     if (!exists) {
       await this.redis.sadd(this.CACHE_KEYS.KNOWN_POOLS, poolKey);
-      console.log(`🆕 새 풀 발견: ${poolKey}`);
+      this.logger.log(`새 풀 발견: ${poolKey}`);
     }
   }
 
   /**
    * 통계 정보 조회
    *
-   * @returns
+   * @returns void
    */
   async getStats() {
     const poolKeys = await this.redis.smembers(this.CACHE_KEYS.KNOWN_POOLS);
@@ -404,27 +391,27 @@ export class PoolService {
    * @param limit
    * @param offset
    */
-  async getPoolEvents(poolKey: string, type = null, limit = 50, offset = 0) {
+  async getPoolEvents(poolKey: string, limit = 50, offset = 0) {
     const events: LiquidityEvent[] = [];
 
-    const eventTypes = type ? [type] : ['liquidity', 'swap'];
+    const eventKey = `${this.CACHE_KEYS.POOL_EVENTS}${poolKey}:liquidity`;
+    const eventList = await this.redis.lrange(
+      eventKey,
+      offset,
+      offset + limit - 1,
+    );
 
-    for (const eventType of eventTypes) {
-      const eventKey = `${this.CACHE_KEYS.POOL_EVENTS}${poolKey}:${eventType}`;
-      const eventList = await this.redis.lrange(
-        eventKey,
-        offset,
-        offset + limit - 1,
-      );
-
-      events.push(...eventList.map((e) => JSON.parse(e) as LiquidityEvent));
-    }
+    events.push(...eventList.map((e) => JSON.parse(e) as LiquidityEvent));
 
     // 시간순 정렬
     return events.sort((a, b) => b.timestamp - a.timestamp);
   }
 
-  //   // 스왑 이벤트 처리
+  /**
+   * 스왑 이벤트 처리
+   *
+   * @param event
+   */
   async processSwapEvent(event: EventLog | Log) {
     const block = await event.getBlock();
     const arg = event['args'] as {
@@ -450,7 +437,194 @@ export class PoolService {
     // 풀별 이벤트 저장
     const poolKey = this.getPoolKey(arg.tokenIn, arg.tokenOut);
     await this.addEventToPool(poolKey, eventData, 'swap');
+
+    // 환율 이벤트 처리
+    await this.processExchangeRateEvent(
+      poolKey,
+      arg.amountIn,
+      arg.amountOut,
+      block.timestamp,
+    );
+  }
+
+  /**
+   * 환율 이벤트 처리
+   *
+   * @param poolKey
+   * @param amountA
+   * @param amountB
+   * @param timestamp
+   */
+  async processExchangeRateEvent(
+    poolKey: string,
+    amountA: string,
+    amountB: string,
+    timestamp: number,
+  ) {
+    // 환율 계산
+    const aToB = (parseFloat(amountA) / parseFloat(amountB)).toFixed(6);
+    const bToA = (parseFloat(amountB) / parseFloat(amountA)).toFixed(6);
+
+    this.logger.log(
+      `환율 이벤트 처리: ${timestamp} ${poolKey} -> ${aToB} ${bToA}`,
+    );
+
+    const eventData = {
+      id: `${poolKey}-${timestamp}`,
+      timestamp: timestamp,
+      aToBRate: aToB,
+      bToARate: bToA,
+    };
+
+    const eventKey = `${this.CACHE_KEYS.EXCHANGE_RATE}${poolKey}`;
+    await this.redis.lpush(eventKey, JSON.stringify(eventData));
+    await this.redis.ltrim(eventKey, 0, 999);
+  }
+
+  /**
+   * 환율 조회
+   *
+   * @param poolKey
+   * @returns
+   */
+  async getExchangeRate(poolKey: string) {
+    const eventKey = `${this.CACHE_KEYS.EXCHANGE_RATE}${poolKey}`;
+    const exchangeRate = await this.redis.lrange(eventKey, 0, -1);
+    const parsedData = exchangeRate.map(
+      (e) =>
+        JSON.parse(e) as {
+          timestamp: number;
+          aToBRate: string;
+          bToARate: string;
+        },
+    );
+
+    // 시간순 오름차순 정렬 (오래된 것 → 최신)
+    return parsedData.sort((a, b) => a.timestamp - b.timestamp);
+  }
+
+  /**
+   * 스왑 이벤트 조회
+   *
+   * @param poolKey
+   * @param limit
+   * @param offset
+   */
+  async getSwapEvents(poolKey: string, limit = 50, offset = 0) {
+    const events: SwapEvent[] = [];
+
+    const eventKey = `${this.CACHE_KEYS.POOL_EVENTS}${poolKey}:swap`;
+    const eventList = await this.redis.lrange(
+      eventKey,
+      offset,
+      offset + limit - 1,
+    );
+
+    events.push(...eventList.map((e) => JSON.parse(e) as SwapEvent));
+
+    return events.sort((a, b) => b.timestamp - a.timestamp);
+  }
+
+  /**
+   * 실시간 이벤트 리스너 설정
+   */
+  setupEventListeners() {
+    this.logger.debug('🎧 실시간 이벤트 리스너 설정...');
+
+    void this.ethers.dexContract.on(
+      'LiquidityAdded',
+      (provider, tokenA, tokenB, amountA, amountB, liquidity) => {
+        this.logger.log(
+          `LiquidityAdded: ${provider} -> ${tokenA} ${tokenB} ${amountA} ${amountB} ${liquidity}`,
+        );
+      },
+    );
+
+    // 유동성 추가 이벤트
+    void this.ethers.dexContract.on(
+      'LiquidityAdded',
+      // eslint-disable-next-line @typescript-eslint/no-misused-promises
+      async (
+        _provider,
+        tokenA,
+        tokenB,
+        amountA,
+        amountB,
+        liquidity,
+        event: EventLog,
+      ) => {
+        this.logger.log('📈 새 유동성 추가:', tokenA, tokenB);
+        await this.processLiquidityEvent(event);
+        await this.updatePoolCache();
+      },
+    );
+
+    void this.ethers.dexContract.on(
+      'Swap',
+      // eslint-disable-next-line @typescript-eslint/no-misused-promises
+      async (
+        provider,
+        tokenIn,
+        tokenOut,
+        amountIn,
+        amountOut,
+        event: EventLog,
+      ) => {
+        this.logger.log(
+          `Swap: ${provider} -> ${tokenIn} ${tokenOut} ${amountIn} ${amountOut}`,
+        );
+
+        await this.processSwapEvent(event);
+        await this.updatePoolCache();
+      },
+    );
+
+    // WebSocket provider 사용
+    const provider = this.ethers.wsProvider;
+
+    void provider.on('block', (blockNumber: number) => {
+      this.logger.debug(`새 블록 #${blockNumber} 생성됨`);
+      void blockInfo(blockNumber);
+    });
+
+    const blockInfo = async (blockNumber: number): Promise<void> => {
+      const block = await provider.getBlock(blockNumber);
+      if (!block) {
+        return;
+      }
+
+      this.logger.debug('블록 정보:', {
+        hash: block.hash,
+        timestamp: new Date(block.timestamp * 1000),
+        transactions: block.transactions.length,
+        gasUsed: block.gasUsed.toString(),
+      });
+
+      if (block.transactions.length > 0) {
+        for (const transaction of block.transactions) {
+          const receipt = await provider.getTransactionReceipt(transaction);
+          this.logger.debug('트랜잭션 정보:', receipt);
+        }
+      }
+    };
+
+    // 새 블록 리스너 등록
+    // provider.on('block', async (blockNumber) => {
+    //   console.log(`새 블록 #${blockNumber} 생성됨`);
+
+    //   // 블록 상세 정보가 필요하면
+    //   const block = await provider.getBlock(blockNumber);
+    //   console.log('블록 정보:', {
+    //     hash: block.hash,
+    //     timestamp: new Date(block.timestamp * 1000),
+    //     transactions: block.transactions.length,
+    //     gasUsed: block.gasUsed.toString(),
+    //   });
+    // });
+
+    // 연결 에러 처리
+    void this.ethers.provider.on('error', (error) => {
+      this.logger.error('❌ Provider 에러:', error);
+    });
   }
 }
-
-//   }

@@ -35,11 +35,6 @@ export function useTokenApproval({
   const { writeContract, data: hash, isPending } = useWriteContract()
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ 
     hash,
-    onSuccess: () => {
-      // 승인 완료 후 allowance 다시 조회
-      console.log('Token approval transaction completed, refetching allowance...')
-      refetchAllowance()
-    }
   })
 
   // 승인이 필요한지 확인

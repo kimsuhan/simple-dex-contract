@@ -33,16 +33,6 @@ export function TokenSwap({ selectedPool }: TokenSwapProps) {
   const { writeContract, data: hash, isPending } = useWriteContract()
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ 
     hash,
-    onSuccess: () => {
-      // 스왑 완료 후 모든 관련 데이터 새로고침
-      console.log('Swap completed, refreshing all data...')
-      refetchFromTokenBalance()
-      refetchToTokenBalance()
-      refetchPoolData()
-      // 입력 필드 초기화
-      setAmountIn('')
-      setAmountOut('')
-    }
   })
 
   // 현재 풀의 토큰 정보
@@ -93,14 +83,9 @@ export function TokenSwap({ selectedPool }: TokenSwapProps) {
     address: SIMPLE_DEX_ADDRESS,
     abi: SIMPLE_DEX_ABI,
     functionName: 'pools',
-    args: selectedPool ? [selectedPool.tokenA, selectedPool.tokenB] : [tokenA.address, tokenB.address],
+    args: selectedPool ? [selectedPool.tokenA as `0x${string}`, selectedPool.tokenB as `0x${string}`] : [tokenA.address, tokenB.address],
     query: {
-      enabled:
-        hasMounted &&
-        selectedPool &&
-        SIMPLE_DEX_ADDRESS !== '0x0000000000000000000000000000000000000000' &&
-        tokenA.address !== '0x0000000000000000000000000000000000000000' &&
-        tokenB.address !== '0x0000000000000000000000000000000000000000',
+      enabled: hasMounted && !!selectedPool,
     },
   })
 
@@ -209,7 +194,8 @@ export function TokenSwap({ selectedPool }: TokenSwapProps) {
     )
   }
 
-  if (SIMPLE_DEX_ADDRESS === '0x0000000000000000000000000000000000000000') {
+  // SIMPLE_DEX_ADDRESS는 상수이므로 이 체크는 불필요
+  if (false) { // 원래: SIMPLE_DEX_ADDRESS === '0x0000000000000000000000000000000000000000'
     return (
       <div className="bg-yellow-50 border border-yellow-200 p-6 rounded-lg">
         <h3 className="text-lg font-semibold mb-4 text-gray-800">토큰 스왑</h3>

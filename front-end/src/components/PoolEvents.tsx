@@ -3,7 +3,7 @@
 import { useClientOnly } from '@/hooks/useClientOnly';
 import { TOKENS } from '@/lib/tokens';
 import { useEffect, useState } from 'react';
-import { FaClock, FaExclamationCircle, FaExternalLinkAlt, FaFilter, FaHistory, FaSpinner, FaTint, FaUser } from 'react-icons/fa';
+import { FaClock, FaExchangeAlt, FaExclamationCircle, FaExternalLinkAlt, FaFilter, FaHistory, FaSpinner, FaTint, FaUser } from 'react-icons/fa';
 import { RiCoinLine } from 'react-icons/ri';
 import { formatUnits } from 'viem';
 
@@ -18,8 +18,23 @@ interface LiquidityEvent {
   amountA: string;
   amountB: string;
   liquidity: string;
-  type: 'LIQUIDITY_ADDED' | 'LIQUIDITY_REMOVED';
+  type: 'LIQUIDITY_ADDED';
 }
+
+interface SwapEvent {
+  id: string;
+  transactionHash: string;
+  blockNumber: number;
+  timestamp: number;
+  swapper: string;
+  tokenIn: string;
+  tokenOut: string;
+  amountIn: string;
+  amountOut: string;
+  type: 'SWAP';
+}
+
+type PoolEvent = LiquidityEvent | SwapEvent;
 
 interface PoolEventsProps {
   tokenA: string;
@@ -28,30 +43,102 @@ interface PoolEventsProps {
 
 export function PoolEvents({ tokenA, tokenB }: PoolEventsProps) {
   const hasMounted = useClientOnly();
-  const [events, setEvents] = useState<LiquidityEvent[]>([]);
+  const [events, setEvents] = useState<PoolEvent[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | 'liquidity' | 'swap'>('all');
   const [limit, setLimit] = useState(20);
 
-  const fetchEvents = async () => {
+  useEffect(() => {
+    const fetchEvents = async () => {
+      setLoading(true);
+      setError(null);
+
+      try {
+        const params = new URLSearchParams();
+        params.append('limit', limit.toString());
+        params.append('offset', '0');
+
+        let allEvents: PoolEvent[] = [];
+
+        // 유동성 이벤트와 스왑 이벤트를 병합해서 가져오기
+        if (filter === 'all' || filter === 'liquidity') {
+          const liquidityResponse = await fetch(`/api/pools/${tokenA}/${tokenB}/events?${params}`);
+          if (liquidityResponse.ok) {
+            const liquidityData = await liquidityResponse.json();
+            if (Array.isArray(liquidityData)) {
+              allEvents = [...allEvents, ...liquidityData];
+            }
+          }
+        }
+
+        if (filter === 'all' || filter === 'swap') {
+          const swapResponse = await fetch(`/api/pools/${tokenA}/${tokenB}/swap-events?${params}`);
+          if (swapResponse.ok) {
+            const swapData = await swapResponse.json();
+            if (Array.isArray(swapData)) {
+              const swapEvents = swapData.map((event) => ({ ...event, type: 'SWAP' as const }));
+              allEvents = [...allEvents, ...swapEvents];
+            }
+          }
+        }
+
+        // 시간순으로 정렬 (최신순)
+        allEvents.sort((a, b) => b.timestamp - a.timestamp);
+
+        // limit만큼만 표시
+        setEvents(allEvents.slice(0, limit));
+      } catch (err) {
+        console.error('이벤트 데이터 가져오기 실패:', err);
+        setError(err instanceof Error ? err.message : '알 수 없는 오류가 발생했습니다.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (hasMounted && tokenA && tokenB) {
+      fetchEvents();
+    }
+  }, [hasMounted, tokenA, tokenB, filter, limit]);
+
+  const fetchEventsManually = async () => {
     setLoading(true);
     setError(null);
 
     try {
       const params = new URLSearchParams();
-      if (filter !== 'all') params.append('type', filter);
       params.append('limit', limit.toString());
       params.append('offset', '0');
 
-      const response = await fetch(`/api/pools/${tokenA}/${tokenB}/events?${params}`);
+      let allEvents: PoolEvent[] = [];
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+      // 유동성 이벤트와 스왑 이벤트를 병합해서 가져오기
+      if (filter === 'all' || filter === 'liquidity') {
+        const liquidityResponse = await fetch(`/api/pools/${tokenA}/${tokenB}/events?${params}`);
+        if (liquidityResponse.ok) {
+          const liquidityData = await liquidityResponse.json();
+          if (Array.isArray(liquidityData)) {
+            allEvents = [...allEvents, ...liquidityData];
+          }
+        }
       }
 
-      const data = await response.json();
-      setEvents(Array.isArray(data) ? data : []);
+      if (filter === 'all' || filter === 'swap') {
+        const swapResponse = await fetch(`/api/pools/${tokenA}/${tokenB}/swap-events?${params}`);
+        if (swapResponse.ok) {
+          const swapData = await swapResponse.json();
+          if (Array.isArray(swapData)) {
+            const swapEvents = swapData.map((event) => ({ ...event, type: 'SWAP' as const }));
+            allEvents = [...allEvents, ...swapEvents];
+          }
+        }
+      }
+
+      // 시간순으로 정렬 (최신순)
+      allEvents.sort((a, b) => b.timestamp - a.timestamp);
+
+      // limit만큼만 표시
+      setEvents(allEvents.slice(0, limit));
     } catch (err) {
       console.error('이벤트 데이터 가져오기 실패:', err);
       setError(err instanceof Error ? err.message : '알 수 없는 오류가 발생했습니다.');
@@ -60,19 +147,22 @@ export function PoolEvents({ tokenA, tokenB }: PoolEventsProps) {
     }
   };
 
-  useEffect(() => {
-    if (hasMounted && tokenA && tokenB) {
-      fetchEvents();
-    }
-  }, [hasMounted, tokenA, tokenB, filter, limit, fetchEvents]);
-
   const getTokenSymbol = (address: string) => {
+    if (!address) return '0x0000000000000000000000000000000000000000';
     const token = TOKENS.find((t) => t.address.toLowerCase() === address.toLowerCase());
     return token?.symbol || `${address.slice(0, 6)}...${address.slice(-4)}`;
   };
 
-  const formatAmount = (amount: string, decimals: number = 18) => {
-    return parseFloat(formatUnits(BigInt(amount), decimals)).toFixed(4);
+  const formatAmount = (amount: string | undefined, decimals: number = 18) => {
+    if (!amount || amount === 'undefined' || amount === '0') {
+      return '0.0000';
+    }
+    try {
+      return parseFloat(formatUnits(BigInt(amount), decimals)).toFixed(4);
+    } catch (error) {
+      console.error('formatAmount error:', error, 'amount:', amount);
+      return '0.0000';
+    }
   };
 
   const formatTimestamp = (timestamp: number) => {
@@ -139,7 +229,7 @@ export function PoolEvents({ tokenA, tokenB }: PoolEventsProps) {
 
           {/* 새로고침 */}
           <button
-            onClick={fetchEvents}
+            onClick={fetchEventsManually}
             disabled={loading}
             className="px-3 py-1 text-sm bg-blue-500 hover:bg-blue-600 text-white rounded-md font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
           >
@@ -198,8 +288,17 @@ export function PoolEvents({ tokenA, tokenB }: PoolEventsProps) {
                 <div key={index} className="border border-gray-200 rounded-lg p-4 hover:shadow-sm transition-shadow">
                   <div className="flex items-start justify-between mb-2">
                     <div className="flex items-center space-x-2">
-                      <div className={`w-3 h-3 rounded-full ${event.type === 'LIQUIDITY_ADDED' ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                      <span className="font-semibold text-sm">{event.type === 'LIQUIDITY_ADDED' ? '유동성 추가' : '유동성 제거'}</span>
+                      {event.type === 'SWAP' ? (
+                        <>
+                          <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+                          <span className="font-semibold text-sm">토큰 스왑</span>
+                        </>
+                      ) : (
+                        <>
+                          <div className={`w-3 h-3 rounded-full ${event.type === 'LIQUIDITY_ADDED' ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                          <span className="font-semibold text-sm">{event.type === 'LIQUIDITY_ADDED' ? '유동성 추가' : '유동성 제거'}</span>
+                        </>
+                      )}
                     </div>
 
                     <div className="flex items-center space-x-2 text-xs text-gray-500">
@@ -208,29 +307,59 @@ export function PoolEvents({ tokenA, tokenB }: PoolEventsProps) {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
-                    <div className="bg-purple-50 rounded p-2">
-                      <div className="text-xs text-purple-600 font-medium mb-1">{getTokenSymbol(event.tokenA)}</div>
-                      <div className="text-sm font-semibold text-purple-900">{formatAmount(event.amountA)}</div>
-                    </div>
+                  {event.type === 'SWAP' ? (
+                    // 스왑 이벤트 UI
+                    <div className="mb-3">
+                      <div className="flex items-center justify-between bg-blue-50 rounded p-3">
+                        <div className="flex flex-col">
+                          <div className="text-xs text-blue-600 font-medium mb-1">From: {getTokenSymbol(event.tokenIn || '')}</div>
+                          <div className="text-sm font-semibold text-blue-900">{formatAmount(event.amountIn)}</div>
+                        </div>
 
-                    <div className="bg-green-50 rounded p-2">
-                      <div className="text-xs text-green-600 font-medium mb-1">{getTokenSymbol(event.tokenB)}</div>
-                      <div className="text-sm font-semibold text-green-900">{formatAmount(event.amountB)}</div>
+                        <FaExchangeAlt className="text-blue-500 mx-3" />
+
+                        <div className="flex flex-col">
+                          <div className="text-xs text-blue-600 font-medium mb-1">To: {getTokenSymbol(event.tokenOut || '')}</div>
+                          <div className="text-sm font-semibold text-blue-900">{formatAmount(event.amountOut)}</div>
+                        </div>
+                      </div>
                     </div>
-                  </div>
+                  ) : (
+                    // 유동성 이벤트 UI
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+                      <div className="bg-purple-50 rounded p-2">
+                        <div className="text-xs text-purple-600 font-medium mb-1">{getTokenSymbol((event as LiquidityEvent).tokenA || '')}</div>
+                        <div className="text-sm font-semibold text-purple-900">{formatAmount((event as LiquidityEvent).amountA)}</div>
+                      </div>
+
+                      <div className="bg-green-50 rounded p-2">
+                        <div className="text-xs text-green-600 font-medium mb-1">{getTokenSymbol((event as LiquidityEvent).tokenB || '')}</div>
+                        <div className="text-sm font-semibold text-green-900">{formatAmount((event as LiquidityEvent).amountB)}</div>
+                      </div>
+                    </div>
+                  )}
 
                   <div className="flex items-center justify-between text-xs text-gray-500">
                     <div className="flex items-center space-x-4">
                       <div className="flex items-center space-x-1">
                         <FaUser className="text-gray-400" />
-                        <span className="font-mono">{`${event.provider.slice(0, 6)}...${event.provider.slice(-4)}`}</span>
+                        <span className="font-mono">
+                          {event.type === 'SWAP'
+                            ? event.swapper
+                              ? `${event.swapper.slice(0, 6)}...${event.swapper.slice(-4)}`
+                              : 'N/A'
+                            : (event as LiquidityEvent).provider
+                            ? `${(event as LiquidityEvent).provider.slice(0, 6)}...${(event as LiquidityEvent).provider.slice(-4)}`
+                            : 'N/A'}
+                        </span>
                       </div>
 
-                      <div className="flex items-center space-x-1">
-                        <FaTint className="text-blue-400" />
-                        <span>LP: {formatAmount(event.liquidity)}</span>
-                      </div>
+                      {event.type !== 'SWAP' && (
+                        <div className="flex items-center space-x-1">
+                          <FaTint className="text-blue-400" />
+                          <span>LP: {formatAmount((event as LiquidityEvent).liquidity)}</span>
+                        </div>
+                      )}
                     </div>
 
                     <div className="flex items-center space-x-1">
